@@ -101,9 +101,3 @@ app/src/main/java/com/example/recipebookapp/
 - `Create/EditRecipeScreen`
 - `ProfileScreen`
 - `OtherUserProfileScreen`
-
-## Примечания
-
-- для локальной разработки включён `usesCleartextTraffic`, чтобы проще работать с `http://10.0.2.2:8080`;
-- при `401` токен очищается в `SafeApiCall`;
-- Room используется для кэша рецептов и избранного.
