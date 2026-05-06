@@ -1,0 +1,109 @@
+# RecipeBookApp
+
+Android-клиент для курсового проекта "Книга рецептов". Приложение построено на Jetpack Compose и работает с backend на Ktor.
+
+## Стек
+
+- Kotlin
+- Jetpack Compose
+- Material 3
+- Navigation Compose
+- Hilt
+- Retrofit + kotlinx.serialization
+- Room
+- DataStore
+- Coroutines / Flow
+- Coil
+- JUnit, Robolectric, MockWebServer
+- Compose UI tests
+
+## Что реализовано
+
+- splash-проверка токена;
+- экраны входа и регистрации;
+- главная лента рецептов;
+- поиск с фильтрами;
+- экран деталей рецепта;
+- создание и редактирование рецепта;
+- профиль пользователя;
+- экран другого автора;
+- избранное;
+- лента подписок;
+- Room-кэш последних рецептов и избранного;
+- автоматическая подстановка JWT в запросы.
+
+## Как указать BASE_URL сервера
+
+По умолчанию в [app/build.gradle.kts](/C:/Users/andre/AndroidStudioProjects/RecipeBookApp/app/build.gradle.kts) используется:
+
+```kotlin
+buildConfigField("String", "BASE_URL", "\"http://10.0.2.2:8080/\"")
+```
+
+Для Android Emulator:
+
+- `http://10.0.2.2:8080/`
+
+Для реального телефона:
+
+- `http://<IP_ВАШЕГО_ПК>:8080/`
+
+После смены адреса пересоберите приложение.
+
+## Запуск
+
+1. Запустите backend `RecipeBookServer`.
+2. Проверьте `BASE_URL`.
+3. Откройте проект в Android Studio.
+4. Запустите конфигурацию `app`.
+
+Локальные тесты:
+
+```bash
+./gradlew testDebugUnitTest
+```
+
+Компиляция UI tests:
+
+```bash
+./gradlew compileDebugAndroidTestKotlin
+```
+
+## Структура
+
+```text
+app/src/main/java/com/example/recipebookapp/
+  core/
+    database/
+    datastore/
+    di/
+    network/
+    ui/
+    utils/
+  feature_auth/
+  feature_recipes/
+  feature_profile/
+  feature_favorites/
+  feature_feed/
+  navigation/
+```
+
+## Экраны
+
+- `SplashScreen`
+- `LoginScreen`
+- `RegisterScreen`
+- `HomeScreen`
+- `SearchScreen`
+- `FeedScreen`
+- `FavoritesScreen`
+- `RecipeDetailsScreen`
+- `Create/EditRecipeScreen`
+- `ProfileScreen`
+- `OtherUserProfileScreen`
+
+## Примечания
+
+- для локальной разработки включён `usesCleartextTraffic`, чтобы проще работать с `http://10.0.2.2:8080`;
+- при `401` токен очищается в `SafeApiCall`;
+- Room используется для кэша рецептов и избранного.
