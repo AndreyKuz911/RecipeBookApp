@@ -18,17 +18,25 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
@@ -233,6 +241,7 @@ fun RecipeEditorScreen(
     onBack: () -> Unit,
 ) {
     val state by viewModel.state.collectAsState()
+    var categoriesExpanded by remember { mutableStateOf(false) }
     val pickImageLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent(),
         onResult = { uri ->
@@ -280,9 +289,38 @@ fun RecipeEditorScreen(
             item {
                 AppTextField(
                     value = state.draft.category,
-                    onValueChange = { value -> viewModel.updateDraft { it.copy(category = value) } },
+                    onValueChange = {},
                     label = "Категория",
                 )
+            }
+            item {
+                ExposedDropdownMenuBox(
+                    expanded = categoriesExpanded,
+                    onExpandedChange = { categoriesExpanded = !categoriesExpanded },
+                ) {
+                    OutlinedTextField(
+                        value = state.draft.category,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Category") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = categoriesExpanded) },
+                        modifier = Modifier.menuAnchor().fillMaxWidth(),
+                    )
+                    DropdownMenu(
+                        expanded = categoriesExpanded,
+                        onDismissRequest = { categoriesExpanded = false },
+                    ) {
+                        RecipeCatalog.categories.forEach { category ->
+                            DropdownMenuItem(
+                                text = { Text(category) },
+                                onClick = {
+                                    viewModel.updateDraft { it.copy(category = category) }
+                                    categoriesExpanded = false
+                                },
+                            )
+                        }
+                    }
+                }
             }
             item {
                 AppTextField(

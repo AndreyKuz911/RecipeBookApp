@@ -2,14 +2,13 @@ package com.example.recipebookapp
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
-import com.example.recipebookapp.core.database.CachedRecipeEntity
-import com.example.recipebookapp.core.database.FavoriteRecipeEntity
-import com.example.recipebookapp.core.database.RecipeDao
+import com.example.recipebookapp.core.common.Resource
 import com.example.recipebookapp.core.datastore.SessionStorage
 import com.example.recipebookapp.core.network.ApiService
 import com.example.recipebookapp.core.network.CommentDto
 import com.example.recipebookapp.core.network.CreateCommentRequestDto
 import com.example.recipebookapp.core.network.LoginRequestDto
+import com.example.recipebookapp.core.network.MediaUploader
 import com.example.recipebookapp.core.network.PagedRecipesResponseDto
 import com.example.recipebookapp.core.network.RatingRequestDto
 import com.example.recipebookapp.core.network.RecipeDetailsDto
@@ -18,13 +17,13 @@ import com.example.recipebookapp.core.network.RecipeUpsertRequestDto
 import com.example.recipebookapp.core.network.RegisterRequestDto
 import com.example.recipebookapp.core.network.SafeApiCall
 import com.example.recipebookapp.core.network.UpdateProfileRequestDto
+import com.example.recipebookapp.core.network.UploadMediaResponseDto
 import com.example.recipebookapp.core.network.UserProfileDto
-import com.example.recipebookapp.core.network.UserSummaryDto
-import com.example.recipebookapp.core.common.Resource
 import com.example.recipebookapp.feature_recipes.data.RecipesRepositoryImpl
 import com.example.recipebookapp.feature_recipes.domain.model.RecipeFilters
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertEquals
+import okhttp3.MultipartBody
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -39,53 +38,31 @@ class RecipesRepositoryImplTest {
     val dispatcherRule = MainDispatcherRule()
 
     @Test
-    fun `repository returns cached recipes when api fails`() = runTest {
+    fun `repository returns error when api fails`() = runTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
+        val api = FailingRecipesApi()
         val repository = RecipesRepositoryImpl(
-            apiService = FailingRecipesApi(),
-            recipeDao = FakeRecipeDao(
-                cached = mutableListOf(
-                    CachedRecipeEntity(
-                        id = "1",
-                        title = "Кэшированный рецепт",
-                        description = "Описание",
-                        category = "Супы",
-                        cookingTimeMinutes = 20,
-                        imageUrl = null,
-                        authorId = "author",
-                        authorUsername = "chef",
-                        authorAvatarUrl = null,
-                        createdAt = "2026-05-03T00:00",
-                        updatedAt = "2026-05-03T00:00",
-                        likesCount = 1,
-                        dislikesCount = 0,
-                        rating = 1,
-                        isFavorite = false,
-                        myRating = null,
-                    ),
-                ),
-            ),
+            apiService = api,
             safeApiCall = SafeApiCall(SessionStorage(context)),
+            mediaUploader = MediaUploader(context, api),
         )
 
         val result = repository.getRecipes(RecipeFilters())
 
-        require(result is Resource.Success)
-        assertEquals(1, result.data.items.size)
-        assertEquals("Кэшированный рецепт", result.data.items.first().title)
+        assertTrue(result is Resource.Error)
     }
 }
 
 private class FailingRecipesApi : ApiService {
     override suspend fun register(body: RegisterRequestDto) = error("Not used")
     override suspend fun login(body: LoginRequestDto) = error("Not used")
-    override suspend fun getRecipes(page: Int, limit: Int, query: String?, category: String?, timeRange: String?, sort: String?) =
+    override suspend fun getRecipes(page: Int, limit: Int, query: String?, category: String?, timeRange: String?, sort: String?): PagedRecipesResponseDto =
         throw java.io.IOException("Offline")
-    override suspend fun getRecipe(recipeId: String) = error("Not used")
-    override suspend fun createRecipe(body: RecipeUpsertRequestDto) = error("Not used")
-    override suspend fun updateRecipe(recipeId: String, body: RecipeUpsertRequestDto) = error("Not used")
+    override suspend fun getRecipe(recipeId: String): RecipeDetailsDto = error("Not used")
+    override suspend fun createRecipe(body: RecipeUpsertRequestDto): RecipeDetailsDto = error("Not used")
+    override suspend fun updateRecipe(recipeId: String, body: RecipeUpsertRequestDto): RecipeDetailsDto = error("Not used")
     override suspend fun deleteRecipe(recipeId: String): Response<Unit> = error("Not used")
-    override suspend fun rateRecipe(recipeId: String, body: RatingRequestDto) = error("Not used")
+    override suspend fun rateRecipe(recipeId: String, body: RatingRequestDto): RecipeDetailsDto = error("Not used")
     override suspend fun deleteRating(recipeId: String): Response<Unit> = error("Not used")
     override suspend fun getComments(recipeId: String): List<CommentDto> = error("Not used")
     override suspend fun createComment(recipeId: String, body: CreateCommentRequestDto): CommentDto = error("Not used")
@@ -99,22 +76,5 @@ private class FailingRecipesApi : ApiService {
     override suspend fun unfollow(userId: String): Response<Unit> = error("Not used")
     override suspend fun getFavorites(): List<RecipeDto> = error("Not used")
     override suspend fun getFeed(): List<RecipeDto> = error("Not used")
-}
-
-private class FakeRecipeDao(
-    private val cached: MutableList<CachedRecipeEntity> = mutableListOf(),
-    private val favorites: MutableList<FavoriteRecipeEntity> = mutableListOf(),
-) : RecipeDao {
-    override suspend fun getCachedRecipes(): List<CachedRecipeEntity> = cached.toList()
-    override suspend fun insertCachedRecipes(items: List<CachedRecipeEntity>) {
-        cached.clear()
-        cached.addAll(items)
-    }
-    override suspend fun clearCachedRecipes() { cached.clear() }
-    override suspend fun getFavoriteRecipes(): List<FavoriteRecipeEntity> = favorites.toList()
-    override suspend fun insertFavoriteRecipes(items: List<FavoriteRecipeEntity>) {
-        favorites.clear()
-        favorites.addAll(items)
-    }
-    override suspend fun clearFavoriteRecipes() { favorites.clear() }
+    override suspend fun uploadMedia(file: MultipartBody.Part): UploadMediaResponseDto = error("Not used")
 }
