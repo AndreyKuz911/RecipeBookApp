@@ -1,8 +1,5 @@
 package com.example.recipebookapp.feature_profile.data
 
-import com.example.recipebookapp.core.database.ProfileDao
-import com.example.recipebookapp.core.database.toDomain
-import com.example.recipebookapp.core.database.toEntity
 import com.example.recipebookapp.core.network.ApiService
 import com.example.recipebookapp.core.network.MediaUploader
 import com.example.recipebookapp.core.network.SafeApiCall
@@ -19,19 +16,17 @@ import javax.inject.Singleton
 class ProfileRepositoryImpl @Inject constructor(
     private val apiService: ApiService,
     private val safeApiCall: SafeApiCall,
-    private val profileDao: ProfileDao,
     private val mediaUploader: MediaUploader,
 ) : ProfileRepository {
     override suspend fun getMyProfileWithRecipes(): Resource<ProfileWithRecipes> {
         return when (val result = safeApiCall.execute { apiService.getMe().toDomain() }) {
             is Resource.Success -> {
-                profileDao.insertProfile(result.data.toEntity())
                 val recipesResult = safeApiCall.execute {
                     apiService.getUserRecipes(result.data.id).map { it.toDomain() }
                 }
                 when (recipesResult) {
                     is Resource.Success -> Resource.Success(ProfileWithRecipes(result.data, recipesResult.data))
-                    is Resource.Error -> Resource.Error(recipesResult.message, recipesResult.throwable)
+                    is Resource.Error -> Resource.Success(ProfileWithRecipes(result.data, emptyList()))
                 }
             }
             is Resource.Error -> result
@@ -44,7 +39,7 @@ class ProfileRepositoryImpl @Inject constructor(
                 val recipesResult = safeApiCall.execute { apiService.getUserRecipes(userId).map { it.toDomain() } }
                 when (recipesResult) {
                     is Resource.Success -> Resource.Success(ProfileWithRecipes(result.data, recipesResult.data))
-                    is Resource.Error -> Resource.Error(recipesResult.message, recipesResult.throwable)
+                    is Resource.Error -> Resource.Success(ProfileWithRecipes(result.data, emptyList()))
                 }
             }
             is Resource.Error -> result
@@ -65,10 +60,6 @@ class ProfileRepositoryImpl @Inject constructor(
                     avatarUrl = resolvedAvatarUrl.ifBlank { null },
                 ),
             ).toDomain()
-        }.also { result ->
-            if (result is Resource.Success) {
-                profileDao.insertProfile(result.data.toEntity())
-            }
         }
     }
 

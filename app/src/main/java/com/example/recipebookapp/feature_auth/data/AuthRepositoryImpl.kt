@@ -1,7 +1,5 @@
 package com.example.recipebookapp.feature_auth.data
 
-import com.example.recipebookapp.core.database.ProfileDao
-import com.example.recipebookapp.core.database.toEntity
 import com.example.recipebookapp.core.datastore.SessionStorage
 import com.example.recipebookapp.core.network.ApiService
 import com.example.recipebookapp.core.network.LoginRequestDto
@@ -21,7 +19,6 @@ class AuthRepositoryImpl @Inject constructor(
     private val apiService: ApiService,
     private val sessionStorage: SessionStorage,
     private val safeApiCall: SafeApiCall,
-    private val profileDao: ProfileDao,
 ) : AuthRepository {
     override val isAuthorized: Flow<Boolean> = sessionStorage.tokenFlow.map { !it.isNullOrBlank() }
 
@@ -31,7 +28,6 @@ class AuthRepositoryImpl @Inject constructor(
         }.also { result ->
             if (result is Resource.Success) {
                 sessionStorage.saveToken(result.data.token)
-                profileDao.insertProfile(result.data.user.toEntity())
             }
         }
     }
@@ -68,7 +64,6 @@ class AuthRepositoryImpl @Inject constructor(
         return finalResult.also { result ->
             if (result is Resource.Success) {
                 sessionStorage.saveToken(result.data.token)
-                profileDao.insertProfile(result.data.user.toEntity())
             }
         }
     }

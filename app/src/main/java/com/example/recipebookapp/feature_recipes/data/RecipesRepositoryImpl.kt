@@ -1,8 +1,5 @@
 package com.example.recipebookapp.feature_recipes.data
 
-import com.example.recipebookapp.core.database.RecipeDao
-import com.example.recipebookapp.core.database.toCachedEntity
-import com.example.recipebookapp.core.database.toDomain
 import com.example.recipebookapp.core.network.ApiService
 import com.example.recipebookapp.core.network.CreateCommentRequestDto
 import com.example.recipebookapp.core.network.MediaUploader
@@ -24,43 +21,19 @@ import javax.inject.Singleton
 @Singleton
 class RecipesRepositoryImpl @Inject constructor(
     private val apiService: ApiService,
-    private val recipeDao: RecipeDao,
     private val safeApiCall: SafeApiCall,
     private val mediaUploader: MediaUploader,
 ) : RecipesRepository {
     override suspend fun getRecipes(filters: RecipeFilters, page: Int, limit: Int): Resource<PagedRecipes> {
-        return when (
-            val result = safeApiCall.execute {
-                apiService.getRecipes(
-                    page = page,
-                    limit = limit,
-                    query = filters.query.ifBlank { null },
-                    category = filters.category.ifBlank { null },
-                    timeRange = filters.timeRange.ifBlank { null },
-                    sort = filters.sort,
-                ).toDomain()
-            }
-        ) {
-            is Resource.Success -> {
-                recipeDao.clearCachedRecipes()
-                recipeDao.insertCachedRecipes(result.data.items.map(Recipe::toCachedEntity))
-                result
-            }
-            is Resource.Error -> {
-                val cached = recipeDao.getCachedRecipes().map { it.toDomain() }
-                if (cached.isNotEmpty()) {
-                    Resource.Success(
-                        PagedRecipes(
-                            items = applyLocalFilters(cached, filters),
-                            page = 1,
-                            limit = cached.size,
-                            total = cached.size,
-                        ),
-                    )
-                } else {
-                    result
-                }
-            }
+        return safeApiCall.execute {
+            apiService.getRecipes(
+                page = page,
+                limit = limit,
+                query = filters.query.ifBlank { null },
+                category = filters.category.ifBlank { null },
+                timeRange = filters.timeRange.ifBlank { null },
+                sort = filters.sort,
+            ).toDomain()
         }
     }
 
@@ -104,26 +77,6 @@ class RecipesRepositoryImpl @Inject constructor(
             ).toDomain()
         }
 
-    private fun applyLocalFilters(items: List<Recipe>, filters: RecipeFilters): List<Recipe> {
-        return items.filter { recipe ->
-            (filters.query.isBlank() || recipe.title.contains(filters.query, ignoreCase = true)) &&
-                (filters.category.isBlank() || recipe.category == filters.category) &&
-                matchesTimeRange(recipe.cookingTimeMinutes, filters.timeRange)
-        }.let { recipes ->
-            when (filters.sort) {
-                "rating" -> recipes.sortedByDescending { it.rating }
-                else -> recipes.sortedByDescending { it.createdAt }
-            }
-        }
-    }
-
-    private fun matchesTimeRange(minutes: Int, timeRange: String): Boolean = when (timeRange) {
-        "up_to_15" -> minutes <= 15
-        "15-30" -> minutes in 15..30
-        "30-60" -> minutes in 30..60
-        "60+" -> minutes > 60
-        else -> true
-    }
 }
 
 private suspend fun RecipeDraft.toRequest(mediaUploader: MediaUploader): RecipeUpsertRequestDto {
