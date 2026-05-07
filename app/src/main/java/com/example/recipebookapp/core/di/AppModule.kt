@@ -1,17 +1,11 @@
 package com.example.recipebookapp.core.di
 
-import android.content.Context
-import androidx.room.Room
 import com.example.recipebookapp.BuildConfig
-import com.example.recipebookapp.core.database.ProfileDao
-import com.example.recipebookapp.core.database.RecipeBookDatabase
-import com.example.recipebookapp.core.database.RecipeDao
 import com.example.recipebookapp.core.network.ApiService
 import com.example.recipebookapp.core.network.AuthInterceptor
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
-import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
@@ -57,19 +51,4 @@ object AppModule {
             .create(ApiService::class.java)
     }
 
-    @Provides
-    @Singleton
-    fun provideDatabase(@ApplicationContext context: Context): RecipeBookDatabase {
-        return Room.databaseBuilder(
-            context,
-            RecipeBookDatabase::class.java,
-            "recipe_book.db",
-        ).fallbackToDestructiveMigration().build()
-    }
-
-    @Provides
-    fun provideRecipeDao(database: RecipeBookDatabase): RecipeDao = database.recipeDao()
-
-    @Provides
-    fun provideProfileDao(database: RecipeBookDatabase): ProfileDao = database.profileDao()
 }
