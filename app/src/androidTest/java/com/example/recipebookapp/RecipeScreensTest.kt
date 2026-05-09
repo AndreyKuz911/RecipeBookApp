@@ -3,10 +3,10 @@ package com.example.recipebookapp
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
-import com.example.recipebookapp.core.ui.RecipeBookTheme
 import com.example.recipebookapp.core.model.Recipe
 import com.example.recipebookapp.core.model.UserSummary
 import com.example.recipebookapp.core.presentation.AsyncState
+import com.example.recipebookapp.core.ui.RecipeBookTheme
 import com.example.recipebookapp.feature_recipes.domain.model.RecipeFilters
 import com.example.recipebookapp.feature_recipes.presentation.HomeScreen
 import com.example.recipebookapp.feature_recipes.presentation.RecipeListUiState

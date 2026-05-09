@@ -1,5 +1,7 @@
 package com.example.recipebookapp.navigation
 
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Bookmark
@@ -14,14 +16,15 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.Modifier
-import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
@@ -217,14 +220,17 @@ private fun MainShell(
                             }
                         },
                         icon = { Icon(item.icon, contentDescription = null) },
-                        label = { androidx.compose.material3.Text(item.label) },
+                        label = { Text(item.label) },
                     )
                 }
             }
         },
         floatingActionButton = {
             if (currentRoute == AppRoutes.Profile || currentRoute == AppRoutes.Home) {
-                FloatingActionButton(onClick = { rootNavController.navigate(AppRoutes.EditRecipePath) }) {
+                FloatingActionButton(
+                    onClick = { rootNavController.navigate(AppRoutes.EditRecipePath) },
+                    shape = RoundedCornerShape(18.dp),
+                ) {
                     Icon(Icons.Outlined.Add, contentDescription = null)
                 }
             }
@@ -259,11 +265,7 @@ private fun MainShell(
 
             composable(AppRoutes.Feed) {
                 val viewModel: FeedViewModel = hiltViewModel()
-                FeedScreen(
-                    viewModel = viewModel,
-                    onRecipeClick = { rootNavController.navigate("${AppRoutes.RecipeDetailsPath}${it.id}") },
-                    onAuthorClick = { rootNavController.navigate("${AppRoutes.OtherProfilePath}$it") },
-                )
+                FeedScreen(viewModel = viewModel)
             }
 
             composable(AppRoutes.Favorites) {
