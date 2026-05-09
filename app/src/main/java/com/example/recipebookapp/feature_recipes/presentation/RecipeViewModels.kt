@@ -12,6 +12,8 @@ import com.example.recipebookapp.feature_recipes.domain.RecipeDraft
 import com.example.recipebookapp.feature_recipes.domain.RecipesRepository
 import com.example.recipebookapp.feature_recipes.domain.model.RecipeFilters
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -26,6 +28,7 @@ data class RecipeDetailsUiState(
     val detailsState: AsyncState<RecipeDetails> = AsyncState.Loading,
     val commentsState: AsyncState<List<Comment>> = AsyncState.Loading,
     val commentText: String = "",
+    val actionInProgress: Boolean = false,
 )
 
 data class RecipeEditorUiState(
@@ -116,37 +119,77 @@ class RecipeDetailsViewModel @Inject constructor(
     fun refresh() {
         viewModelScope.launch {
             _state.value = _state.value.copy(detailsState = AsyncState.Loading, commentsState = AsyncState.Loading)
-            when (val details = repository.getRecipeDetails(recipeId)) {
-                is Resource.Success -> {
-                    _state.value = _state.value.copy(detailsState = AsyncState.Success(details.data))
+            coroutineScope {
+                val detailsDeferred = async { repository.getRecipeDetails(recipeId) }
+                val commentsDeferred = async { repository.getComments(recipeId) }
+
+                when (val details = detailsDeferred.await()) {
+                    is Resource.Success -> {
+                        _state.value = _state.value.copy(detailsState = AsyncState.Success(details.data))
+                    }
+                    is Resource.Error -> {
+                        _state.value = _state.value.copy(detailsState = AsyncState.Error(details.message))
+                    }
                 }
-                is Resource.Error -> {
-                    _state.value = _state.value.copy(detailsState = AsyncState.Error(details.message))
+                when (val comments = commentsDeferred.await()) {
+                    is Resource.Success -> {
+                        _state.value = _state.value.copy(
+                            commentsState = if (comments.data.isEmpty()) AsyncState.Empty else AsyncState.Success(comments.data),
+                        )
+                    }
+                    is Resource.Error -> _state.value = _state.value.copy(commentsState = AsyncState.Error(comments.message))
                 }
-            }
-            when (val comments = repository.getComments(recipeId)) {
-                is Resource.Success -> {
-                    _state.value = _state.value.copy(
-                        commentsState = if (comments.data.isEmpty()) AsyncState.Empty else AsyncState.Success(comments.data),
-                    )
-                }
-                is Resource.Error -> _state.value = _state.value.copy(commentsState = AsyncState.Error(comments.message))
             }
         }
     }
 
     fun setRating(value: Int) {
+        val previous = (_state.value.detailsState as? AsyncState.Success)?.data ?: return
+        val optimistic = previous.applyRating(value)
+        _state.value = _state.value.copy(
+            detailsState = AsyncState.Success(optimistic),
+            actionInProgress = true,
+        )
         viewModelScope.launch {
-            repository.rateRecipe(recipeId, value)
-            refresh()
+            when (val result = repository.rateRecipe(recipeId, value)) {
+                is Resource.Success -> {
+                    _state.value = _state.value.copy(
+                        detailsState = AsyncState.Success(result.data),
+                        actionInProgress = false,
+                    )
+                }
+                is Resource.Error -> {
+                    _state.value = _state.value.copy(
+                        detailsState = AsyncState.Success(previous),
+                        actionInProgress = false,
+                    )
+                }
+            }
         }
     }
 
     fun toggleFavorite() {
         val details = (_state.value.detailsState as? AsyncState.Success)?.data ?: return
+        val optimistic = details.copy(isFavorite = !details.isFavorite)
+        _state.value = _state.value.copy(
+            detailsState = AsyncState.Success(optimistic),
+            actionInProgress = true,
+        )
         viewModelScope.launch {
-            repository.toggleFavorite(recipeId, details.isFavorite)
-            refresh()
+            when (val result = repository.toggleFavorite(recipeId, details.isFavorite)) {
+                is Resource.Success -> {
+                    _state.value = _state.value.copy(
+                        detailsState = AsyncState.Success(result.data),
+                        actionInProgress = false,
+                    )
+                }
+                is Resource.Error -> {
+                    _state.value = _state.value.copy(
+                        detailsState = AsyncState.Success(details),
+                        actionInProgress = false,
+                    )
+                }
+            }
         }
     }
 
@@ -154,10 +197,65 @@ class RecipeDetailsViewModel @Inject constructor(
         val text = _state.value.commentText.trim()
         if (text.isBlank()) return
         viewModelScope.launch {
-            repository.addComment(recipeId, text)
-            _state.value = _state.value.copy(commentText = "")
-            refresh()
+            when (val result = repository.addComment(recipeId, text)) {
+                is Resource.Success -> {
+                    val updatedComments = when (val commentsState = _state.value.commentsState) {
+                        is AsyncState.Success -> listOf(result.data) + commentsState.data
+                        else -> listOf(result.data)
+                    }
+                    _state.value = _state.value.copy(
+                        commentText = "",
+                        commentsState = AsyncState.Success(updatedComments),
+                    )
+                }
+                is Resource.Error -> {
+                    _state.value = _state.value.copy(commentsState = AsyncState.Error(result.message))
+                }
+            }
         }
+    }
+}
+
+private fun RecipeDetails.applyRating(newValue: Int): RecipeDetails {
+    val previousRating = myRating
+    if (previousRating == newValue) {
+        return when (newValue) {
+            1 -> copy(likesCount = (likesCount - 1).coerceAtLeast(0), rating = rating - 1, myRating = null)
+            -1 -> copy(dislikesCount = (dislikesCount - 1).coerceAtLeast(0), rating = rating + 1, myRating = null)
+            else -> this
+        }
+    }
+
+    return when (newValue) {
+        1 -> when (previousRating) {
+            -1 -> copy(
+                likesCount = likesCount + 1,
+                dislikesCount = (dislikesCount - 1).coerceAtLeast(0),
+                rating = rating + 2,
+                myRating = 1,
+            )
+            null -> copy(
+                likesCount = likesCount + 1,
+                rating = rating + 1,
+                myRating = 1,
+            )
+            else -> this
+        }
+        -1 -> when (previousRating) {
+            1 -> copy(
+                likesCount = (likesCount - 1).coerceAtLeast(0),
+                dislikesCount = dislikesCount + 1,
+                rating = rating - 2,
+                myRating = -1,
+            )
+            null -> copy(
+                dislikesCount = dislikesCount + 1,
+                rating = rating - 1,
+                myRating = -1,
+            )
+            else -> this
+        }
+        else -> this
     }
 }
 

@@ -9,6 +9,7 @@ import com.example.recipebookapp.core.network.CommentDto
 import com.example.recipebookapp.core.network.CreateCommentRequestDto
 import com.example.recipebookapp.core.network.LoginRequestDto
 import com.example.recipebookapp.core.network.MediaUploader
+import com.example.recipebookapp.core.network.NewsItemDto
 import com.example.recipebookapp.core.network.PagedRecipesResponseDto
 import com.example.recipebookapp.core.network.RatingRequestDto
 import com.example.recipebookapp.core.network.RecipeDetailsDto
@@ -76,5 +77,6 @@ private class FailingRecipesApi : ApiService {
     override suspend fun unfollow(userId: String): Response<Unit> = error("Not used")
     override suspend fun getFavorites(): List<RecipeDto> = error("Not used")
     override suspend fun getFeed(): List<RecipeDto> = error("Not used")
+    override suspend fun getNews(limit: Int): List<NewsItemDto> = error("Not used")
     override suspend fun uploadMedia(file: MultipartBody.Part): UploadMediaResponseDto = error("Not used")
 }
