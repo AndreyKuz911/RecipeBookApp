@@ -9,7 +9,6 @@ import com.example.recipebookapp.core.network.SafeApiCall
 import com.example.recipebookapp.core.network.toDomain
 import com.example.recipebookapp.core.common.Resource
 import com.example.recipebookapp.core.model.Comment
-import com.example.recipebookapp.core.model.Recipe
 import com.example.recipebookapp.core.model.RecipeDetails
 import com.example.recipebookapp.feature_recipes.domain.RecipeDraft
 import com.example.recipebookapp.feature_recipes.domain.RecipesRepository
@@ -47,18 +46,18 @@ class RecipesRepositoryImpl @Inject constructor(
         safeApiCall.execute { apiService.updateRecipe(recipeId, draft.toRequest(mediaUploader)).toDomain() }
 
     override suspend fun deleteRecipe(recipeId: String): Resource<Unit> =
-        safeApiCall.execute { apiService.deleteRecipe(recipeId); Unit }
+        safeApiCall.execute { apiService.deleteRecipe(recipeId).let { Unit } }
 
     override suspend fun rateRecipe(recipeId: String, value: Int): Resource<RecipeDetails> =
         safeApiCall.executeWithRetry(maxAttempts = 2) { apiService.rateRecipe(recipeId, RatingRequestDto(value)).toDomain() }
 
     override suspend fun clearRating(recipeId: String): Resource<Unit> =
-        safeApiCall.execute { apiService.deleteRating(recipeId); Unit }
+        safeApiCall.execute { apiService.deleteRating(recipeId).let { Unit } }
 
     override suspend fun toggleFavorite(recipeId: String, currentlyFavorite: Boolean): Resource<RecipeDetails> {
         return safeApiCall.execute {
             if (currentlyFavorite) {
-                apiService.removeFavorite(recipeId)
+                apiService.removeFavorite(recipeId).let { Unit }
                 apiService.getRecipe(recipeId).toDomain()
             } else {
                 apiService.addFavorite(recipeId).toDomain()
