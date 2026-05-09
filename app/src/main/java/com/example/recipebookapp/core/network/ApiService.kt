@@ -83,6 +83,9 @@ interface ApiService {
     @GET("feed")
     suspend fun getFeed(): List<RecipeDto>
 
+    @GET("news")
+    suspend fun getNews(@Query("limit") limit: Int = 30): List<NewsItemDto>
+
     @Multipart
     @POST("media/upload")
     suspend fun uploadMedia(@Part file: MultipartBody.Part): UploadMediaResponseDto

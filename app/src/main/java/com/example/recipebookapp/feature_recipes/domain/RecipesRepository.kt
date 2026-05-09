@@ -31,7 +31,7 @@ interface RecipesRepository {
 
     suspend fun clearRating(recipeId: String): Resource<Unit>
 
-    suspend fun toggleFavorite(recipeId: String, currentlyFavorite: Boolean): Resource<Unit>
+    suspend fun toggleFavorite(recipeId: String, currentlyFavorite: Boolean): Resource<RecipeDetails>
 
     suspend fun getComments(recipeId: String): Resource<List<Comment>>
 

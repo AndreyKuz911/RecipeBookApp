@@ -32,7 +32,7 @@ class SafeApiCall @Inject constructor(
                         } ?: "Server error ${throwable.code()}"
                         Resource.Error(message, throwable)
                     }
-                    is IOException -> Resource.Error("Проверьте подключение к сети", throwable)
+                    is IOException -> Resource.Error("Проблема с сетью или сервером. Попробуйте еще раз", throwable)
                     else -> Resource.Error(throwable.message ?: "Unknown error", throwable)
                 }
             },

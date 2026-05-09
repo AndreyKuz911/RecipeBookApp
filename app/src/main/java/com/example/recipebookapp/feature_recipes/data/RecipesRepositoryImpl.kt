@@ -38,7 +38,7 @@ class RecipesRepositoryImpl @Inject constructor(
     }
 
     override suspend fun getRecipeDetails(recipeId: String): Resource<RecipeDetails> =
-        safeApiCall.execute { apiService.getRecipe(recipeId).toDomain() }
+        safeApiCall.executeWithRetry(maxAttempts = 2) { apiService.getRecipe(recipeId).toDomain() }
 
     override suspend fun createRecipe(draft: RecipeDraft): Resource<RecipeDetails> =
         safeApiCall.execute { apiService.createRecipe(draft.toRequest(mediaUploader)).toDomain() }
@@ -50,24 +50,24 @@ class RecipesRepositoryImpl @Inject constructor(
         safeApiCall.execute { apiService.deleteRecipe(recipeId); Unit }
 
     override suspend fun rateRecipe(recipeId: String, value: Int): Resource<RecipeDetails> =
-        safeApiCall.execute { apiService.rateRecipe(recipeId, RatingRequestDto(value)).toDomain() }
+        safeApiCall.executeWithRetry(maxAttempts = 2) { apiService.rateRecipe(recipeId, RatingRequestDto(value)).toDomain() }
 
     override suspend fun clearRating(recipeId: String): Resource<Unit> =
         safeApiCall.execute { apiService.deleteRating(recipeId); Unit }
 
-    override suspend fun toggleFavorite(recipeId: String, currentlyFavorite: Boolean): Resource<Unit> {
+    override suspend fun toggleFavorite(recipeId: String, currentlyFavorite: Boolean): Resource<RecipeDetails> {
         return safeApiCall.execute {
             if (currentlyFavorite) {
                 apiService.removeFavorite(recipeId)
+                apiService.getRecipe(recipeId).toDomain()
             } else {
-                apiService.addFavorite(recipeId)
+                apiService.addFavorite(recipeId).toDomain()
             }
-            Unit
         }
     }
 
     override suspend fun getComments(recipeId: String): Resource<List<Comment>> =
-        safeApiCall.execute { apiService.getComments(recipeId).map { it.toDomain() } }
+        safeApiCall.executeWithRetry(maxAttempts = 2) { apiService.getComments(recipeId).map { it.toDomain() } }
 
     override suspend fun addComment(recipeId: String, text: String, parentCommentId: String?): Resource<Comment> =
         safeApiCall.execute {
