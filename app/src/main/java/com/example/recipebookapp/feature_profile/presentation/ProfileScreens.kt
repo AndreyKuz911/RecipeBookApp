@@ -9,12 +9,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -28,6 +29,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.recipebookapp.core.presentation.AsyncState
@@ -35,7 +37,9 @@ import com.example.recipebookapp.core.ui.AppTextField
 import com.example.recipebookapp.core.ui.EmptyState
 import com.example.recipebookapp.core.ui.ErrorState
 import com.example.recipebookapp.core.ui.LoadingState
+import com.example.recipebookapp.core.ui.PrimaryWideButton
 import com.example.recipebookapp.core.ui.RecipeCard
+import com.example.recipebookapp.core.ui.SecondaryWideButton
 import com.example.recipebookapp.feature_profile.domain.model.ProfileWithRecipes
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -90,24 +94,47 @@ fun ProfileScreen(
             onRecipeClick = onRecipeClick,
             onAuthorClick = onAuthorClick,
             editSection = {
-                AppTextField(state.editUsername, viewModel::updateUsername, "Username")
-                AppTextField(state.editBio, viewModel::updateBio, "Bio")
-                AppTextField(state.editAvatarUrl, viewModel::updateAvatarUrl, "Avatar URL")
+                Card(shape = RoundedCornerShape(20.dp)) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Text("Редактирование", style = MaterialTheme.typography.titleMedium)
+                        AppTextField(state.editUsername, viewModel::updateUsername, "Имя пользователя")
+                        AppTextField(state.editBio, viewModel::updateBio, "О себе")
+                        AppTextField(state.editAvatarUrl, viewModel::updateAvatarUrl, "Ссылка на аватар")
 
-                if (state.editAvatarUrl.isNotBlank()) {
-                    AsyncImage(
-                        model = state.editAvatarUrl,
-                        contentDescription = null,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
+                        if (state.editAvatarUrl.isNotBlank()) {
+                            AsyncImage(
+                                model = state.editAvatarUrl,
+                                contentDescription = null,
+                                modifier = Modifier.fillMaxWidth(),
+                                contentScale = ContentScale.Crop,
+                            )
+                        }
 
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = viewModel::saveProfile) { Text("Сохранить") }
-                    Button(onClick = { pickAvatarLauncher.launch("image/*") }) { Text("Выбрать аватар") }
-                    Button(onClick = { viewModel.updateAvatarUrl("") }) { Text("Удалить аватар") }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(
+                                modifier = Modifier.weight(1f),
+                                onClick = viewModel::saveProfile,
+                                shape = RoundedCornerShape(14.dp),
+                            ) { Text("Сохранить") }
+                            Button(
+                                modifier = Modifier.weight(1f),
+                                onClick = { pickAvatarLauncher.launch("image/*") },
+                                shape = RoundedCornerShape(14.dp),
+                            ) { Text("Выбрать фото") }
+                        }
+                        SecondaryWideButton(
+                            text = "Удалить аватар",
+                            onClick = { viewModel.updateAvatarUrl("") },
+                        )
+                        PrimaryWideButton(
+                            text = "Создать рецепт",
+                            onClick = onCreateRecipe,
+                        )
+                    }
                 }
-                Button(onClick = onCreateRecipe) { Text("Создать рецепт") }
             },
         )
     }
@@ -141,7 +168,10 @@ fun OtherProfileScreen(
             onRecipeClick = onRecipeClick,
             onAuthorClick = onAuthorClick,
             editSection = {
-                Button(onClick = viewModel::toggleFollow) { Text("Подписаться / Отписаться") }
+                PrimaryWideButton(
+                    text = "Подписаться / Отписаться",
+                    onClick = viewModel::toggleFollow,
+                )
             },
         )
     }
@@ -175,23 +205,30 @@ private fun ProfileContent(
         is AsyncState.Success -> {
             val profile = state.data.profile
             LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
+                modifier = Modifier.fillMaxSize().padding(padding).padding(14.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 item {
-                    Text(profile.username, style = MaterialTheme.typography.headlineSmall)
+                    Card(shape = RoundedCornerShape(20.dp)) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Text(profile.username, style = MaterialTheme.typography.headlineSmall)
+                            Text(
+                                profile.bio.orEmpty().ifBlank { "Расскажите о себе в профиле" },
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Text(
+                                "Рецептов: ${profile.recipesCount} | Подписчики: ${profile.followersCount} | Подписок: ${profile.followingCount}",
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
+                    }
                 }
+                item { editSection() }
                 item {
-                    Text(profile.bio.orEmpty())
-                }
-                item {
-                    Text("Рецептов: ${profile.recipesCount} | Подписчики: ${profile.followersCount} | Подписок: ${profile.followingCount}")
-                }
-                item {
-                    editSection()
-                }
-                item {
-                    Text("Мои рецепты", style = MaterialTheme.typography.titleMedium)
+                    Text("Рецепты", style = MaterialTheme.typography.titleMedium)
                 }
                 items(state.data.recipes) { recipe ->
                     RecipeCard(
