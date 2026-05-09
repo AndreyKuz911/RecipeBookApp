@@ -28,9 +28,10 @@ class LoginScreenTest {
             }
         }
 
-        composeRule.onNodeWithText("Вход").assertIsDisplayed()
+        composeRule.onNodeWithText("С возвращением").assertIsDisplayed()
         composeRule.onNodeWithText("Email").assertIsDisplayed()
         composeRule.onNodeWithText("Пароль").assertIsDisplayed()
+        composeRule.onNodeWithText("Войти").assertIsDisplayed()
     }
 
     @Test

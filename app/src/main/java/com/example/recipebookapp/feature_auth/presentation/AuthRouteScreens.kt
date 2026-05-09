@@ -1,22 +1,27 @@
 package com.example.recipebookapp.feature_auth.presentation
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
-import androidx.compose.material3.CenterAlignedTopAppBar
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.recipebookapp.core.ui.AppTextField
+import com.example.recipebookapp.core.ui.PrimaryWideButton
+import com.example.recipebookapp.core.ui.SecondaryWideButton
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LoginScreen(
     state: AuthUiState,
@@ -25,30 +30,31 @@ fun LoginScreen(
     onLogin: () -> Unit,
     onOpenRegister: () -> Unit,
 ) {
-    Scaffold(topBar = { CenterAlignedTopAppBar(title = { Text("Вход") }) }) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            Text("RecipeBook", style = MaterialTheme.typography.headlineMedium)
-            Text("Публикуйте рецепты, сохраняйте избранное и следите за любимыми авторами.")
-            AppTextField(state.email, onEmailChange, "Email")
-            AppTextField(state.password, onPasswordChange, "Пароль")
-            state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-            Button(onClick = onLogin, enabled = !state.isLoading, modifier = Modifier.fillMaxWidth()) {
-                Text(if (state.isLoading) "Загрузка..." else "Войти")
-            }
-            Button(onClick = onOpenRegister, modifier = Modifier.fillMaxWidth()) {
-                Text("Нет аккаунта? Регистрация")
-            }
+    AuthContainer(
+        title = "С возвращением",
+        subtitle = "Вход в RecipeBook",
+    ) {
+        AppTextField(state.email, onEmailChange, "Email")
+        AppTextField(state.password, onPasswordChange, "Пароль")
+        state.error?.let {
+            Text(
+                text = it,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodyMedium,
+            )
         }
+        PrimaryWideButton(
+            text = if (state.isLoading) "Входим..." else "Войти",
+            onClick = onLogin,
+            enabled = !state.isLoading,
+        )
+        SecondaryWideButton(
+            text = "Нет аккаунта? Регистрация",
+            onClick = onOpenRegister,
+        )
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RegisterScreen(
     state: AuthUiState,
@@ -59,25 +65,87 @@ fun RegisterScreen(
     onRegister: () -> Unit,
     onOpenLogin: () -> Unit,
 ) {
-    Scaffold(topBar = { CenterAlignedTopAppBar(title = { Text("Регистрация") }) }) { padding ->
+    AuthContainer(
+        title = "Создайте аккаунт",
+        subtitle = "Присоединяйтесь к RecipeBook",
+    ) {
+        AppTextField(state.email, onEmailChange, "Email")
+        AppTextField(state.username, onUsernameChange, "Имя пользователя")
+        AppTextField(state.password, onPasswordChange, "Пароль")
+        AppTextField(state.confirmPassword, onConfirmPasswordChange, "Подтвердите пароль")
+        state.error?.let {
+            Text(
+                text = it,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+        PrimaryWideButton(
+            text = if (state.isLoading) "Создаем..." else "Создать аккаунт",
+            onClick = onRegister,
+            enabled = !state.isLoading,
+        )
+        SecondaryWideButton(
+            text = "Уже есть аккаунт",
+            onClick = onOpenLogin,
+        )
+    }
+}
+
+@Composable
+private fun AuthContainer(
+    title: String,
+    subtitle: String,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
+                        MaterialTheme.colorScheme.background,
+                    ),
+                ),
+            ),
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
-                .padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+                .padding(horizontal = 20.dp, vertical = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Text("Создайте аккаунт", style = MaterialTheme.typography.headlineMedium)
-            AppTextField(state.email, onEmailChange, "Email")
-            AppTextField(state.username, onUsernameChange, "Username")
-            AppTextField(state.password, onPasswordChange, "Пароль")
-            AppTextField(state.confirmPassword, onConfirmPasswordChange, "Подтвердите пароль")
-            state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-            Button(onClick = onRegister, enabled = !state.isLoading, modifier = Modifier.fillMaxWidth()) {
-                Text(if (state.isLoading) "Загрузка..." else "Создать аккаунт")
+            Column(
+                modifier = Modifier.padding(top = 24.dp, bottom = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Medium,
+                )
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
             }
-            Button(onClick = onOpenLogin, modifier = Modifier.fillMaxWidth()) {
-                Text("Уже есть аккаунт")
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp),
+                tonalElevation = 2.dp,
+                shadowElevation = 1.dp,
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    content = content,
+                )
             }
         }
     }
