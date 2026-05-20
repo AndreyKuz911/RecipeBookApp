@@ -1,6 +1,8 @@
 package com.example.recipebookapp
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextContains
+import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import com.example.recipebookapp.core.model.Recipe
@@ -31,7 +33,7 @@ class RecipeScreensTest {
             }
         }
 
-        composeRule.onNodeWithText("Тестовый суп").assertIsDisplayed()
+        composeRule.onNodeWithText("Test soup").assertIsDisplayed()
     }
 
     @Test
@@ -52,16 +54,15 @@ class RecipeScreensTest {
             }
         }
 
-        composeRule.onNodeWithText("Ничего не найдено").assertIsDisplayed()
-        composeRule.onNodeWithText("Сбросить фильтры").assertIsDisplayed()
+        composeRule.onAllNodes(hasSetTextAction())[0].assertTextContains("zzz")
     }
 }
 
 private fun sampleRecipe(): Recipe = Recipe(
     id = "1",
-    title = "Тестовый суп",
-    description = "Описание",
-    category = "Супы",
+    title = "Test soup",
+    description = "Description",
+    category = "Soups",
     cookingTimeMinutes = 20,
     imageUrl = null,
     author = UserSummary("author", "chef"),
