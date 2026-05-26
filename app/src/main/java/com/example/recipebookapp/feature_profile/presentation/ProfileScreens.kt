@@ -96,13 +96,23 @@ fun ProfileScreen(
             editSection = {
                 Card(shape = RoundedCornerShape(20.dp)) {
                     Column(
-                        modifier = Modifier.fillMaxWidth().padding(14.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(14.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
                         Text("Редактирование", style = MaterialTheme.typography.titleMedium)
                         AppTextField(state.editUsername, viewModel::updateUsername, "Имя пользователя")
                         AppTextField(state.editBio, viewModel::updateBio, "О себе")
                         AppTextField(state.editAvatarUrl, viewModel::updateAvatarUrl, "Ссылка на аватар")
+
+                        state.error?.let {
+                            Text(
+                                text = it,
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
 
                         if (state.editAvatarUrl.isNotBlank()) {
                             AsyncImage(
@@ -117,13 +127,19 @@ fun ProfileScreen(
                             Button(
                                 modifier = Modifier.weight(1f),
                                 onClick = viewModel::saveProfile,
+                                enabled = !state.isSaving,
                                 shape = RoundedCornerShape(14.dp),
-                            ) { Text("Сохранить") }
+                            ) {
+                                Text(if (state.isSaving) "Сохраняем..." else "Сохранить")
+                            }
                             Button(
                                 modifier = Modifier.weight(1f),
                                 onClick = { pickAvatarLauncher.launch("image/*") },
+                                enabled = !state.isSaving,
                                 shape = RoundedCornerShape(14.dp),
-                            ) { Text("Выбрать фото") }
+                            ) {
+                                Text("Выбрать фото")
+                            }
                         }
                         SecondaryWideButton(
                             text = "Удалить аватар",
@@ -168,10 +184,19 @@ fun OtherProfileScreen(
             onRecipeClick = onRecipeClick,
             onAuthorClick = onAuthorClick,
             editSection = {
-                PrimaryWideButton(
-                    text = "Подписаться / Отписаться",
-                    onClick = viewModel::toggleFollow,
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    state.error?.let {
+                        Text(
+                            text = it,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                    PrimaryWideButton(
+                        text = "Подписаться / Отписаться",
+                        onClick = viewModel::toggleFollow,
+                    )
+                }
             },
         )
     }
@@ -188,30 +213,53 @@ private fun ProfileContent(
 ) {
     when (state) {
         AsyncState.Empty -> {
-            Column(modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(16.dp),
+            ) {
                 EmptyState("Нет данных")
             }
         }
+
         is AsyncState.Error -> {
-            Column(modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(16.dp),
+            ) {
                 ErrorState(state.message, onRetry)
             }
         }
+
         AsyncState.Loading -> {
-            Column(modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(16.dp),
+            ) {
                 LoadingState()
             }
         }
+
         is AsyncState.Success -> {
             val profile = state.data.profile
             LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(padding).padding(14.dp),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(14.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 item {
                     Card(shape = RoundedCornerShape(20.dp)) {
                         Column(
-                            modifier = Modifier.fillMaxWidth().padding(14.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(14.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
                             Text(profile.username, style = MaterialTheme.typography.headlineSmall)

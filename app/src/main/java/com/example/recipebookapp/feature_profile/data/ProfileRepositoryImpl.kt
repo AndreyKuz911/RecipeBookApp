@@ -48,11 +48,7 @@ class ProfileRepositoryImpl @Inject constructor(
 
     override suspend fun updateProfile(username: String, bio: String, avatarUrl: String): Resource<UserProfile> {
         return safeApiCall.execute {
-            val resolvedAvatarUrl = if (mediaUploader.isLocalUri(avatarUrl)) {
-                mediaUploader.uploadFromUri(avatarUrl)
-            } else {
-                avatarUrl.ifBlank { "" }
-            }
+            val resolvedAvatarUrl = mediaUploader.resolveForServerStorage(avatarUrl)
             apiService.updateMe(
                 UpdateProfileRequestDto(
                     username = username.trim(),
@@ -64,13 +60,14 @@ class ProfileRepositoryImpl @Inject constructor(
     }
 
     override suspend fun setFollowing(userId: String, shouldFollow: Boolean): Resource<Unit> {
-        return safeApiCall.execute {
-            if (shouldFollow) {
-                apiService.follow(userId)
-            } else {
-                apiService.unfollow(userId)
-            }
-            Unit
+        return safeApiCall.execute { setFollowingRequest(userId, shouldFollow) }
+    }
+
+    private suspend fun setFollowingRequest(userId: String, shouldFollow: Boolean) {
+        if (shouldFollow) {
+            apiService.follow(userId)
+        } else {
+            apiService.unfollow(userId)
         }
     }
 }

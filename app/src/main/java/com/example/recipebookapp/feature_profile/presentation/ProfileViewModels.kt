@@ -7,7 +7,9 @@ import com.example.recipebookapp.core.common.Resource
 import com.example.recipebookapp.core.presentation.AsyncState
 import com.example.recipebookapp.feature_auth.domain.LogoutUseCase
 import com.example.recipebookapp.feature_profile.domain.ProfileRepository
+import com.example.recipebookapp.feature_profile.domain.ProfileUseCases
 import com.example.recipebookapp.feature_profile.domain.model.ProfileWithRecipes
+import com.example.recipebookapp.feature_profile.domain.profileUseCases
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -25,9 +27,14 @@ data class ProfileUiState(
 
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
-    private val repository: ProfileRepository,
+    private val profileUseCases: ProfileUseCases,
     private val logoutUseCase: LogoutUseCase,
 ) : ViewModel() {
+    constructor(repository: ProfileRepository, logoutUseCase: LogoutUseCase) : this(
+        profileUseCases = profileUseCases(repository),
+        logoutUseCase = logoutUseCase,
+    )
+
     private val _state = MutableStateFlow(ProfileUiState())
     val state = _state.asStateFlow()
 
@@ -38,7 +45,7 @@ class ProfileViewModel @Inject constructor(
     fun refresh() {
         viewModelScope.launch {
             _state.value = _state.value.copy(profileState = AsyncState.Loading)
-            when (val result = repository.getMyProfileWithRecipes()) {
+            when (val result = profileUseCases.getMyProfileWithRecipes()) {
                 is Resource.Success -> {
                     _state.value = _state.value.copy(
                         profileState = AsyncState.Success(result.data),
@@ -59,10 +66,14 @@ class ProfileViewModel @Inject constructor(
     fun saveProfile() {
         viewModelScope.launch {
             _state.value = _state.value.copy(isSaving = true, error = null)
-            when (val result = repository.updateProfile(_state.value.editUsername, _state.value.editBio, _state.value.editAvatarUrl)) {
+            when (val result = profileUseCases.updateProfile(_state.value.editUsername, _state.value.editBio, _state.value.editAvatarUrl)) {
                 is Resource.Success -> {
-                    _state.value = _state.value.copy(isSaving = false)
-                    refresh()
+                    val currentRecipes = (_state.value.profileState as? AsyncState.Success)?.data?.recipes.orEmpty()
+                    _state.value = _state.value.copy(
+                        isSaving = false,
+                        profileState = AsyncState.Success(ProfileWithRecipes(result.data, currentRecipes)),
+                        error = null,
+                    )
                 }
                 is Resource.Error -> _state.value = _state.value.copy(isSaving = false, error = result.message)
             }
@@ -78,9 +89,14 @@ class ProfileViewModel @Inject constructor(
 
 @HiltViewModel
 class OtherProfileViewModel @Inject constructor(
-    private val repository: ProfileRepository,
+    private val profileUseCases: ProfileUseCases,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
+    constructor(repository: ProfileRepository, savedStateHandle: SavedStateHandle) : this(
+        profileUseCases = profileUseCases(repository),
+        savedStateHandle = savedStateHandle,
+    )
+
     private val userId: String = checkNotNull(savedStateHandle["userId"])
     private val _state = MutableStateFlow(ProfileUiState())
     val state = _state.asStateFlow()
@@ -92,7 +108,7 @@ class OtherProfileViewModel @Inject constructor(
     fun refresh() {
         viewModelScope.launch {
             _state.value = _state.value.copy(profileState = AsyncState.Loading)
-            when (val result = repository.getOtherProfileWithRecipes(userId)) {
+            when (val result = profileUseCases.getOtherProfileWithRecipes(userId)) {
                 is Resource.Success -> _state.value = _state.value.copy(profileState = AsyncState.Success(result.data))
                 is Resource.Error -> _state.value = _state.value.copy(profileState = AsyncState.Error(result.message))
             }
@@ -102,8 +118,10 @@ class OtherProfileViewModel @Inject constructor(
     fun toggleFollow() {
         val data = (_state.value.profileState as? AsyncState.Success)?.data ?: return
         viewModelScope.launch {
-            repository.setFollowing(userId, !data.profile.isFollowing)
-            refresh()
+            when (val result = profileUseCases.setFollowing(userId, !data.profile.isFollowing)) {
+                is Resource.Success -> refresh()
+                is Resource.Error -> _state.value = _state.value.copy(error = result.message)
+            }
         }
     }
 }
