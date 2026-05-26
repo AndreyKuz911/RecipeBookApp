@@ -4,9 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.recipebookapp.core.common.Resource
 import com.example.recipebookapp.feature_auth.domain.AuthRepository
-import com.example.recipebookapp.feature_auth.domain.LoginUseCase
-import com.example.recipebookapp.feature_auth.domain.LogoutUseCase
-import com.example.recipebookapp.feature_auth.domain.RegisterUseCase
+import com.example.recipebookapp.feature_auth.domain.AuthUseCases
+import com.example.recipebookapp.feature_auth.domain.ObserveAuthorizationUseCase
+import com.example.recipebookapp.feature_auth.domain.authUseCases
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -28,18 +28,20 @@ data class AuthUiState(
 
 @HiltViewModel
 class SplashViewModel @Inject constructor(
-    authRepository: AuthRepository,
+    observeAuthorizationUseCase: ObserveAuthorizationUseCase,
 ) : ViewModel() {
-    val isAuthorized: StateFlow<Boolean?> = authRepository.isAuthorized
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+    constructor(repository: AuthRepository) : this(ObserveAuthorizationUseCase(repository))
+
+    val isAuthorized: StateFlow<Boolean?> = observeAuthorizationUseCase()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 }
 
 @HiltViewModel
 class AuthViewModel @Inject constructor(
-    private val loginUseCase: LoginUseCase,
-    private val registerUseCase: RegisterUseCase,
-    private val logoutUseCase: LogoutUseCase,
+    private val authUseCases: AuthUseCases,
 ) : ViewModel() {
+    constructor(repository: AuthRepository) : this(authUseCases(repository))
+
     private val _state = MutableStateFlow(AuthUiState())
     val state = _state.asStateFlow()
 
@@ -59,7 +61,7 @@ class AuthViewModel @Inject constructor(
         }
         viewModelScope.launch {
             _state.update { it.copy(isLoading = true, error = null) }
-            when (val result = loginUseCase(current.email, current.password)) {
+            when (val result = authUseCases.login(current.email, current.password)) {
                 is Resource.Success -> _state.update { it.copy(isLoading = false, isAuthenticated = true) }
                 is Resource.Error -> _state.update { it.copy(isLoading = false, error = result.message) }
             }
@@ -75,7 +77,7 @@ class AuthViewModel @Inject constructor(
                 _state.update { it.copy(error = "Пароли не совпадают") }
             else -> viewModelScope.launch {
                 _state.update { it.copy(isLoading = true, error = null) }
-                when (val result = registerUseCase(current.email, current.username, current.password)) {
+                when (val result = authUseCases.register(current.email, current.username, current.password)) {
                     is Resource.Success -> _state.update { it.copy(isLoading = false, isAuthenticated = true) }
                     is Resource.Error -> _state.update { it.copy(isLoading = false, error = result.message) }
                 }
@@ -89,7 +91,7 @@ class AuthViewModel @Inject constructor(
 
     fun logout() {
         viewModelScope.launch {
-            logoutUseCase()
+            authUseCases.logout()
             _state.value = AuthUiState()
         }
     }
