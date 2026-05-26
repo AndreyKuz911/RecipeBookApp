@@ -93,6 +93,9 @@ dependencies {
     implementation("com.squareup.okhttp3:logging-interceptor:5.1.0")
 
     implementation("androidx.datastore:datastore-preferences:1.1.7")
+    implementation("androidx.room:room-runtime:2.7.2")
+    implementation("androidx.room:room-ktx:2.7.2")
+    kapt("androidx.room:room-compiler:2.7.2")
     implementation("io.coil-kt:coil-compose:2.7.0")
 
     testImplementation("junit:junit:4.13.2")
@@ -101,6 +104,7 @@ dependencies {
     testImplementation("com.google.truth:truth:1.4.4")
     testImplementation("androidx.arch.core:core-testing:2.2.0")
     testImplementation("androidx.test:core:1.7.0")
+    testImplementation("androidx.room:room-testing:2.7.2")
     testImplementation("com.squareup.okhttp3:mockwebserver:5.1.0")
     testImplementation("org.robolectric:robolectric:4.14.1")
 
