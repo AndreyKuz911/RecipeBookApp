@@ -3,6 +3,8 @@ package com.example.recipebookapp
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.example.recipebookapp.core.common.Resource
+import com.example.recipebookapp.core.database.RecipeCacheDao
+import com.example.recipebookapp.core.database.RecipeCacheEntity
 import com.example.recipebookapp.core.datastore.SessionStorage
 import com.example.recipebookapp.core.network.ApiService
 import com.example.recipebookapp.core.network.CommentDto
@@ -24,6 +26,7 @@ import com.example.recipebookapp.feature_recipes.data.RecipesRepositoryImpl
 import com.example.recipebookapp.feature_recipes.domain.model.RecipeFilters
 import kotlinx.coroutines.test.runTest
 import okhttp3.MultipartBody
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -39,19 +42,74 @@ class RecipesRepositoryImplTest {
     val dispatcherRule = MainDispatcherRule()
 
     @Test
-    fun `repository returns error when api fails`() = runTest {
+    fun `repository returns error when api fails and cache is empty`() = runTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val api = FailingRecipesApi()
         val repository = RecipesRepositoryImpl(
             apiService = api,
             safeApiCall = SafeApiCall(SessionStorage(context)),
             mediaUploader = MediaUploader(context, api),
+            recipeCacheDao = FakeRecipeCacheDao(),
         )
 
         val result = repository.getRecipes(RecipeFilters())
 
         assertTrue(result is Resource.Error)
     }
+
+    @Test
+    fun `repository falls back to cached catalog when network fails`() = runTest {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val api = FailingRecipesApi()
+        val repository = RecipesRepositoryImpl(
+            apiService = api,
+            safeApiCall = SafeApiCall(SessionStorage(context)),
+            mediaUploader = MediaUploader(context, api),
+            recipeCacheDao = FakeRecipeCacheDao(
+                recentRecipes = listOf(
+                    RecipeCacheEntity(
+                        id = "cached-1",
+                        title = "Cached soup",
+                        description = "Saved locally",
+                        category = "Soups",
+                        cookingTimeMinutes = 25,
+                        imageUrl = null,
+                        authorId = "u1",
+                        authorUsername = "chef",
+                        authorAvatarUrl = null,
+                        createdAt = "2026-05-11T10:00:00",
+                        updatedAt = "2026-05-11T10:00:00",
+                        likesCount = 3,
+                        dislikesCount = 0,
+                        rating = 3,
+                        isFavorite = false,
+                        myRating = null,
+                        cachedAtEpochMs = 1L,
+                    ),
+                ),
+            ),
+        )
+
+        val result = repository.getRecipes(RecipeFilters())
+
+        assertTrue(result is Resource.Success)
+        val success = result as Resource.Success
+        assertEquals(1, success.data.items.size)
+        assertEquals("cached-1", success.data.items.first().id)
+    }
+}
+
+private class FakeRecipeCacheDao(
+    private val recentRecipes: List<RecipeCacheEntity> = emptyList(),
+) : RecipeCacheDao {
+    override suspend fun getRecentRecipes(limit: Int): List<RecipeCacheEntity> = recentRecipes
+    override suspend fun getFavoriteRecipes(): List<RecipeCacheEntity> = emptyList()
+    override suspend fun upsertRecipes(recipes: List<RecipeCacheEntity>) = Unit
+    override suspend fun upsertRecipe(recipe: RecipeCacheEntity) = Unit
+    override suspend fun clearFavoriteFlags() = Unit
+    override suspend fun markFavorites(ids: List<String>) = Unit
+    override suspend fun updateFavoriteState(recipeId: String, isFavorite: Boolean) = Unit
+    override suspend fun deleteRecipe(recipeId: String) = Unit
 }
 
 private class FailingRecipesApi : ApiService {
