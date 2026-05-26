@@ -6,6 +6,8 @@ import com.example.recipebookapp.core.common.Resource
 import com.example.recipebookapp.core.model.Recipe
 import com.example.recipebookapp.core.presentation.AsyncState
 import com.example.recipebookapp.feature_favorites.domain.FavoritesRepository
+import com.example.recipebookapp.feature_favorites.domain.FavoritesUseCases
+import com.example.recipebookapp.feature_favorites.domain.favoritesUseCases
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -14,8 +16,10 @@ import javax.inject.Inject
 
 @HiltViewModel
 class FavoritesViewModel @Inject constructor(
-    private val repository: FavoritesRepository,
+    private val favoritesUseCases: FavoritesUseCases,
 ) : ViewModel() {
+    constructor(repository: FavoritesRepository) : this(favoritesUseCases(repository))
+
     private val _state = MutableStateFlow<AsyncState<List<Recipe>>>(AsyncState.Loading)
     val state = _state.asStateFlow()
 
@@ -26,7 +30,7 @@ class FavoritesViewModel @Inject constructor(
     fun refresh() {
         viewModelScope.launch {
             _state.value = AsyncState.Loading
-            when (val result = repository.getFavorites()) {
+            when (val result = favoritesUseCases.getFavorites()) {
                 is Resource.Success -> _state.value = if (result.data.isEmpty()) AsyncState.Empty else AsyncState.Success(result.data)
                 is Resource.Error -> _state.value = AsyncState.Error(result.message)
             }
@@ -36,7 +40,7 @@ class FavoritesViewModel @Inject constructor(
     fun removeFromFavorites(recipeId: String) {
         val current = (_state.value as? AsyncState.Success)?.data ?: return
         viewModelScope.launch {
-            when (repository.removeFavorite(recipeId)) {
+            when (favoritesUseCases.removeFavorite(recipeId)) {
                 is Resource.Success -> {
                     val updated = current.filterNot { it.id == recipeId }
                     _state.value = if (updated.isEmpty()) AsyncState.Empty else AsyncState.Success(updated)

@@ -9,8 +9,10 @@ import com.example.recipebookapp.core.model.Recipe
 import com.example.recipebookapp.core.model.RecipeDetails
 import com.example.recipebookapp.core.presentation.AsyncState
 import com.example.recipebookapp.feature_recipes.domain.RecipeDraft
+import com.example.recipebookapp.feature_recipes.domain.RecipeUseCases
 import com.example.recipebookapp.feature_recipes.domain.RecipesRepository
 import com.example.recipebookapp.feature_recipes.domain.model.RecipeFilters
+import com.example.recipebookapp.feature_recipes.domain.recipeUseCases
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -40,8 +42,10 @@ data class RecipeEditorUiState(
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
-    private val repository: RecipesRepository,
+    private val recipeUseCases: RecipeUseCases,
 ) : ViewModel() {
+    constructor(repository: RecipesRepository) : this(recipeUseCases(repository))
+
     private val _state = MutableStateFlow(RecipeListUiState())
     val state = _state.asStateFlow()
 
@@ -52,7 +56,7 @@ class HomeViewModel @Inject constructor(
     fun loadRecipes() {
         viewModelScope.launch {
             _state.value = _state.value.copy(state = AsyncState.Loading)
-            when (val result = repository.getRecipes(RecipeFilters())) {
+            when (val result = recipeUseCases.getRecipes(RecipeFilters())) {
                 is Resource.Success -> {
                     _state.value = _state.value.copy(
                         state = if (result.data.items.isEmpty()) AsyncState.Empty else AsyncState.Success(result.data.items),
@@ -66,8 +70,10 @@ class HomeViewModel @Inject constructor(
 
 @HiltViewModel
 class SearchViewModel @Inject constructor(
-    private val repository: RecipesRepository,
+    private val recipeUseCases: RecipeUseCases,
 ) : ViewModel() {
+    constructor(repository: RecipesRepository) : this(recipeUseCases(repository))
+
     private val _state = MutableStateFlow(RecipeListUiState(filters = RecipeFilters()))
     val state = _state.asStateFlow()
 
@@ -87,7 +93,7 @@ class SearchViewModel @Inject constructor(
     fun search() {
         viewModelScope.launch {
             _state.value = _state.value.copy(state = AsyncState.Loading)
-            when (val result = repository.getRecipes(_state.value.filters)) {
+            when (val result = recipeUseCases.getRecipes(_state.value.filters)) {
                 is Resource.Success -> {
                     _state.value = _state.value.copy(
                         state = if (result.data.items.isEmpty()) AsyncState.Empty else AsyncState.Success(result.data.items),
@@ -101,9 +107,14 @@ class SearchViewModel @Inject constructor(
 
 @HiltViewModel
 class RecipeDetailsViewModel @Inject constructor(
-    private val repository: RecipesRepository,
+    private val recipeUseCases: RecipeUseCases,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
+    constructor(repository: RecipesRepository, savedStateHandle: SavedStateHandle) : this(
+        recipeUseCases = recipeUseCases(repository),
+        savedStateHandle = savedStateHandle,
+    )
+
     private val recipeId: String = checkNotNull(savedStateHandle["recipeId"])
     private val _state = MutableStateFlow(RecipeDetailsUiState())
     val state = _state.asStateFlow()
@@ -120,8 +131,8 @@ class RecipeDetailsViewModel @Inject constructor(
         viewModelScope.launch {
             _state.value = _state.value.copy(detailsState = AsyncState.Loading, commentsState = AsyncState.Loading)
             coroutineScope {
-                val detailsDeferred = async { repository.getRecipeDetails(recipeId) }
-                val commentsDeferred = async { repository.getComments(recipeId) }
+                val detailsDeferred = async { recipeUseCases.getRecipeDetails(recipeId) }
+                val commentsDeferred = async { recipeUseCases.getRecipeComments(recipeId) }
 
                 when (val details = detailsDeferred.await()) {
                     is Resource.Success -> {
@@ -151,7 +162,7 @@ class RecipeDetailsViewModel @Inject constructor(
             actionInProgress = true,
         )
         viewModelScope.launch {
-            when (val result = repository.rateRecipe(recipeId, value)) {
+            when (val result = recipeUseCases.rateRecipe(recipeId, value)) {
                 is Resource.Success -> {
                     _state.value = _state.value.copy(
                         detailsState = AsyncState.Success(result.data),
@@ -176,7 +187,7 @@ class RecipeDetailsViewModel @Inject constructor(
             actionInProgress = true,
         )
         viewModelScope.launch {
-            when (val result = repository.toggleFavorite(recipeId, details.isFavorite)) {
+            when (val result = recipeUseCases.toggleRecipeFavorite(recipeId, details.isFavorite)) {
                 is Resource.Success -> {
                     _state.value = _state.value.copy(
                         detailsState = AsyncState.Success(result.data),
@@ -197,7 +208,7 @@ class RecipeDetailsViewModel @Inject constructor(
         val text = _state.value.commentText.trim()
         if (text.isBlank()) return
         viewModelScope.launch {
-            when (val result = repository.addComment(recipeId, text)) {
+            when (val result = recipeUseCases.addRecipeComment(recipeId, text)) {
                 is Resource.Success -> {
                     val updatedComments = when (val commentsState = _state.value.commentsState) {
                         is AsyncState.Success -> listOf(result.data) + commentsState.data
@@ -261,9 +272,14 @@ private fun RecipeDetails.applyRating(newValue: Int): RecipeDetails {
 
 @HiltViewModel
 class EditRecipeViewModel @Inject constructor(
-    private val repository: RecipesRepository,
+    private val recipeUseCases: RecipeUseCases,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
+    constructor(repository: RecipesRepository, savedStateHandle: SavedStateHandle) : this(
+        recipeUseCases = recipeUseCases(repository),
+        savedStateHandle = savedStateHandle,
+    )
+
     private val recipeId: String? = savedStateHandle["recipeId"]
     private val _state = MutableStateFlow(RecipeEditorUiState())
     val state = _state.asStateFlow()
@@ -271,7 +287,7 @@ class EditRecipeViewModel @Inject constructor(
     init {
         if (!recipeId.isNullOrBlank()) {
             viewModelScope.launch {
-                when (val result = repository.getRecipeDetails(recipeId)) {
+                when (val result = recipeUseCases.getRecipeDetails(recipeId)) {
                     is Resource.Success -> {
                         _state.value = _state.value.copy(draft = result.data.toDraft())
                     }
@@ -289,9 +305,9 @@ class EditRecipeViewModel @Inject constructor(
         viewModelScope.launch {
             _state.value = _state.value.copy(isLoading = true, error = null)
             val result = if (recipeId.isNullOrBlank()) {
-                repository.createRecipe(_state.value.draft)
+                recipeUseCases.saveRecipe.create(_state.value.draft)
             } else {
-                repository.updateRecipe(recipeId, _state.value.draft)
+                recipeUseCases.saveRecipe.update(recipeId, _state.value.draft)
             }
             when (result) {
                 is Resource.Success -> _state.value = _state.value.copy(

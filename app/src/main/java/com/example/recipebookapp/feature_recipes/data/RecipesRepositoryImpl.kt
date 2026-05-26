@@ -1,5 +1,8 @@
 package com.example.recipebookapp.feature_recipes.data
 
+import com.example.recipebookapp.core.database.RecipeCacheDao
+import com.example.recipebookapp.core.database.toCacheEntity
+import com.example.recipebookapp.core.database.toDomain
 import com.example.recipebookapp.core.network.ApiService
 import com.example.recipebookapp.core.network.CreateCommentRequestDto
 import com.example.recipebookapp.core.network.MediaUploader
@@ -22,9 +25,10 @@ class RecipesRepositoryImpl @Inject constructor(
     private val apiService: ApiService,
     private val safeApiCall: SafeApiCall,
     private val mediaUploader: MediaUploader,
+    private val recipeCacheDao: RecipeCacheDao,
 ) : RecipesRepository {
     override suspend fun getRecipes(filters: RecipeFilters, page: Int, limit: Int): Resource<PagedRecipes> {
-        return safeApiCall.execute {
+        val result = safeApiCall.execute {
             apiService.getRecipes(
                 page = page,
                 limit = limit,
@@ -34,35 +38,85 @@ class RecipesRepositoryImpl @Inject constructor(
                 sort = filters.sort,
             ).toDomain()
         }
+        return when (result) {
+            is Resource.Success -> {
+                cacheRecipes(result.data.items)
+                result
+            }
+            is Resource.Error -> {
+                if (filters.isDefaultCatalog() && page == 1) {
+                    val cached = recipeCacheDao.getRecentRecipes(limit).map { it.toDomain() }
+                    if (cached.isNotEmpty()) {
+                        Resource.Success(PagedRecipes(items = cached, page = 1, limit = limit, total = cached.size))
+                    } else {
+                        result
+                    }
+                } else {
+                    result
+                }
+            }
+        }
     }
 
-    override suspend fun getRecipeDetails(recipeId: String): Resource<RecipeDetails> =
-        safeApiCall.executeWithRetry(maxAttempts = 2) { apiService.getRecipe(recipeId).toDomain() }
+    override suspend fun getRecipeDetails(recipeId: String): Resource<RecipeDetails> {
+        val result = safeApiCall.executeWithRetry(maxAttempts = 2) { apiService.getRecipe(recipeId).toDomain() }
+        if (result is Resource.Success) {
+            cacheRecipe(result.data)
+        }
+        return result
+    }
 
-    override suspend fun createRecipe(draft: RecipeDraft): Resource<RecipeDetails> =
-        safeApiCall.execute { apiService.createRecipe(draft.toRequest(mediaUploader)).toDomain() }
+    override suspend fun createRecipe(draft: RecipeDraft): Resource<RecipeDetails> {
+        val result = safeApiCall.execute { apiService.createRecipe(draft.toRequest(mediaUploader)).toDomain() }
+        if (result is Resource.Success) {
+            cacheRecipe(result.data)
+        }
+        return result
+    }
 
-    override suspend fun updateRecipe(recipeId: String, draft: RecipeDraft): Resource<RecipeDetails> =
-        safeApiCall.execute { apiService.updateRecipe(recipeId, draft.toRequest(mediaUploader)).toDomain() }
+    override suspend fun updateRecipe(recipeId: String, draft: RecipeDraft): Resource<RecipeDetails> {
+        val result = safeApiCall.execute { apiService.updateRecipe(recipeId, draft.toRequest(mediaUploader)).toDomain() }
+        if (result is Resource.Success) {
+            cacheRecipe(result.data)
+        }
+        return result
+    }
 
-    override suspend fun deleteRecipe(recipeId: String): Resource<Unit> =
-        safeApiCall.execute { apiService.deleteRecipe(recipeId).let { Unit } }
+    override suspend fun deleteRecipe(recipeId: String): Resource<Unit> {
+        val result = safeApiCall.execute { deleteRecipeRequest(recipeId) }
+        if (result is Resource.Success) {
+            recipeCacheDao.deleteRecipe(recipeId)
+        }
+        return result
+    }
 
-    override suspend fun rateRecipe(recipeId: String, value: Int): Resource<RecipeDetails> =
-        safeApiCall.executeWithRetry(maxAttempts = 2) { apiService.rateRecipe(recipeId, RatingRequestDto(value)).toDomain() }
+    override suspend fun rateRecipe(recipeId: String, value: Int): Resource<RecipeDetails> {
+        val result = safeApiCall.executeWithRetry(maxAttempts = 2) {
+            apiService.rateRecipe(recipeId, RatingRequestDto(value)).toDomain()
+        }
+        if (result is Resource.Success) {
+            cacheRecipe(result.data)
+        }
+        return result
+    }
 
     override suspend fun clearRating(recipeId: String): Resource<Unit> =
-        safeApiCall.execute { apiService.deleteRating(recipeId).let { Unit } }
+        safeApiCall.execute { clearRatingRequest(recipeId) }
 
     override suspend fun toggleFavorite(recipeId: String, currentlyFavorite: Boolean): Resource<RecipeDetails> {
         return safeApiCall.execute {
             if (currentlyFavorite) {
-                apiService.removeFavorite(recipeId).let { Unit }
+                removeFavoriteRequest(recipeId)
                 apiService.getRecipe(recipeId).toDomain()
             } else {
                 apiService.addFavorite(recipeId).toDomain()
             }
         }
+            .also { result ->
+                if (result is Resource.Success) {
+                    cacheRecipe(result.data)
+                }
+            }
     }
 
     override suspend fun getComments(recipeId: String): Resource<List<Comment>> =
@@ -76,14 +130,35 @@ class RecipesRepositoryImpl @Inject constructor(
             ).toDomain()
         }
 
+    private suspend fun cacheRecipes(recipes: List<com.example.recipebookapp.core.model.Recipe>) {
+        if (recipes.isEmpty()) return
+        recipeCacheDao.upsertRecipes(recipes.map { it.toCacheEntity() })
+    }
+
+    private suspend fun cacheRecipe(recipe: RecipeDetails) {
+        recipeCacheDao.upsertRecipe(recipe.toCacheEntity())
+    }
+
+    private suspend fun deleteRecipeRequest(recipeId: String) {
+        apiService.deleteRecipe(recipeId)
+    }
+
+    private suspend fun clearRatingRequest(recipeId: String) {
+        apiService.deleteRating(recipeId)
+    }
+
+    private suspend fun removeFavoriteRequest(recipeId: String) {
+        apiService.removeFavorite(recipeId)
+    }
 }
+
+private fun RecipeFilters.isDefaultCatalog(): Boolean =
+    query.isBlank() && category.isBlank() && timeRange.isBlank() && sort == "newest"
 
 private suspend fun RecipeDraft.toRequest(mediaUploader: MediaUploader): RecipeUpsertRequestDto {
     val uploadedImageUrls = imageUrls
         .filter { it.isNotBlank() }
-        .map { value ->
-            if (mediaUploader.isLocalUri(value)) mediaUploader.uploadFromUri(value) else value
-        }
+        .map { value -> mediaUploader.resolveForServerStorage(value) }
 
     return RecipeUpsertRequestDto(
         title = title.trim(),
