@@ -14,3 +14,10 @@
 .cxx
 local.properties
 .env
+/.idea/deviceManager.xml
+/.idea/markdown.xml
+/_doc_audit/
+~$*.docx
+/coursework_report*.docx
+/Курсовая_работа_Книга_рецептов.docx
+/Отчет_Курсовая_Книга_рецептов_по_методичке.docx
