@@ -5,6 +5,7 @@ import com.example.recipebookapp.core.model.Recipe
 import com.example.recipebookapp.core.model.RecipeDetails
 import com.example.recipebookapp.core.model.UserProfile
 import com.example.recipebookapp.core.model.UserSummary
+import com.example.recipebookapp.feature_profile.domain.BuildProfileEditorFieldsUseCase
 import com.example.recipebookapp.feature_profile.domain.MergeUpdatedProfileUseCase
 import com.example.recipebookapp.feature_profile.domain.model.ProfileWithRecipes
 import com.example.recipebookapp.feature_recipes.domain.ApplyOptimisticFavoriteUseCase
@@ -108,6 +109,17 @@ class RecipeDomainUseCasesTest {
 
         assertEquals("solo", merged.profile.username)
         assertTrue(merged.recipes.isEmpty())
+    }
+
+    @Test
+    fun `build profile editor fields normalizes nullable profile values`() {
+        val useCase = BuildProfileEditorFieldsUseCase()
+
+        val fields = useCase(sampleProfile("chef").copy(bio = null, avatarUrl = null))
+
+        assertEquals("chef", fields.username)
+        assertEquals("", fields.bio)
+        assertEquals("", fields.avatarUrl)
     }
 
     private fun sampleDetails(

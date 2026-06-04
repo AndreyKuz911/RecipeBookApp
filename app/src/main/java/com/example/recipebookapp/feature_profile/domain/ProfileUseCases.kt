@@ -1,6 +1,7 @@
 package com.example.recipebookapp.feature_profile.domain
 
 import com.example.recipebookapp.core.model.UserProfile
+import com.example.recipebookapp.feature_profile.domain.model.ProfileEditorFields
 import com.example.recipebookapp.feature_profile.domain.model.ProfileWithRecipes
 import javax.inject.Inject
 
@@ -9,6 +10,7 @@ data class ProfileUseCases @Inject constructor(
     val getOtherProfileWithRecipes: GetOtherProfileWithRecipesUseCase,
     val updateProfile: UpdateProfileUseCase,
     val setFollowing: SetFollowingUseCase,
+    val buildProfileEditorFields: BuildProfileEditorFieldsUseCase,
     val mergeUpdatedProfile: MergeUpdatedProfileUseCase,
 )
 
@@ -38,6 +40,14 @@ class SetFollowingUseCase @Inject constructor(
         repository.setFollowing(userId, shouldFollow)
 }
 
+class BuildProfileEditorFieldsUseCase @Inject constructor() {
+    operator fun invoke(profile: UserProfile): ProfileEditorFields = ProfileEditorFields(
+        username = profile.username,
+        bio = profile.bio.orEmpty(),
+        avatarUrl = profile.avatarUrl.orEmpty(),
+    )
+}
+
 class MergeUpdatedProfileUseCase @Inject constructor() {
     operator fun invoke(current: ProfileWithRecipes?, updatedProfile: UserProfile): ProfileWithRecipes =
         ProfileWithRecipes(
@@ -51,5 +61,6 @@ fun profileUseCases(repository: ProfileRepository): ProfileUseCases = ProfileUse
     getOtherProfileWithRecipes = GetOtherProfileWithRecipesUseCase(repository),
     updateProfile = UpdateProfileUseCase(repository),
     setFollowing = SetFollowingUseCase(repository),
+    buildProfileEditorFields = BuildProfileEditorFieldsUseCase(),
     mergeUpdatedProfile = MergeUpdatedProfileUseCase(),
 )

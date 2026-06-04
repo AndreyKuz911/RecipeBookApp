@@ -8,9 +8,11 @@ import com.example.recipebookapp.core.model.Comment
 import com.example.recipebookapp.core.model.Recipe
 import com.example.recipebookapp.core.model.RecipeDetails
 import com.example.recipebookapp.core.presentation.AsyncState
+import com.example.recipebookapp.core.presentation.toAsyncState
 import com.example.recipebookapp.feature_recipes.domain.RecipeDraft
 import com.example.recipebookapp.feature_recipes.domain.RecipeUseCases
 import com.example.recipebookapp.feature_recipes.domain.RecipesRepository
+import com.example.recipebookapp.feature_recipes.domain.model.PagedRecipes
 import com.example.recipebookapp.feature_recipes.domain.model.RecipeFilters
 import com.example.recipebookapp.feature_recipes.domain.recipeUseCases
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -40,6 +42,13 @@ data class RecipeEditorUiState(
     val savedRecipeId: String? = null,
 )
 
+private fun Resource<PagedRecipes>.toRecipeListState(): AsyncState<List<Recipe>> = when (val state = toAsyncState { it.items.isEmpty() }) {
+    is AsyncState.Success -> AsyncState.Success(state.data.items)
+    AsyncState.Empty -> AsyncState.Empty
+    is AsyncState.Error -> state
+    AsyncState.Loading -> AsyncState.Loading
+}
+
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val recipeUseCases: RecipeUseCases,
@@ -56,14 +65,8 @@ class HomeViewModel @Inject constructor(
     fun loadRecipes() {
         viewModelScope.launch {
             _state.value = _state.value.copy(state = AsyncState.Loading)
-            when (val result = recipeUseCases.getRecipes(RecipeFilters())) {
-                is Resource.Success -> {
-                    _state.value = _state.value.copy(
-                        state = if (result.data.items.isEmpty()) AsyncState.Empty else AsyncState.Success(result.data.items),
-                    )
-                }
-                is Resource.Error -> _state.value = _state.value.copy(state = AsyncState.Error(result.message))
-            }
+            val result = recipeUseCases.getRecipes(RecipeFilters())
+            _state.value = _state.value.copy(state = result.toRecipeListState())
         }
     }
 }
@@ -93,14 +96,8 @@ class SearchViewModel @Inject constructor(
     fun search() {
         viewModelScope.launch {
             _state.value = _state.value.copy(state = AsyncState.Loading)
-            when (val result = recipeUseCases.getRecipes(_state.value.filters)) {
-                is Resource.Success -> {
-                    _state.value = _state.value.copy(
-                        state = if (result.data.items.isEmpty()) AsyncState.Empty else AsyncState.Success(result.data.items),
-                    )
-                }
-                is Resource.Error -> _state.value = _state.value.copy(state = AsyncState.Error(result.message))
-            }
+            val result = recipeUseCases.getRecipes(_state.value.filters)
+            _state.value = _state.value.copy(state = result.toRecipeListState())
         }
     }
 }
@@ -134,22 +131,12 @@ class RecipeDetailsViewModel @Inject constructor(
                 val detailsDeferred = async { recipeUseCases.getRecipeDetails(recipeId) }
                 val commentsDeferred = async { recipeUseCases.getRecipeComments(recipeId) }
 
-                when (val details = detailsDeferred.await()) {
-                    is Resource.Success -> {
-                        _state.value = _state.value.copy(detailsState = AsyncState.Success(details.data))
-                    }
-                    is Resource.Error -> {
-                        _state.value = _state.value.copy(detailsState = AsyncState.Error(details.message))
-                    }
-                }
-                when (val comments = commentsDeferred.await()) {
-                    is Resource.Success -> {
-                        _state.value = _state.value.copy(
-                            commentsState = if (comments.data.isEmpty()) AsyncState.Empty else AsyncState.Success(comments.data),
-                        )
-                    }
-                    is Resource.Error -> _state.value = _state.value.copy(commentsState = AsyncState.Error(comments.message))
-                }
+                val details = detailsDeferred.await()
+                val comments = commentsDeferred.await()
+                _state.value = _state.value.copy(
+                    detailsState = details.toAsyncState(),
+                    commentsState = comments.toAsyncState(List<Comment>::isEmpty),
+                )
             }
         }
     }

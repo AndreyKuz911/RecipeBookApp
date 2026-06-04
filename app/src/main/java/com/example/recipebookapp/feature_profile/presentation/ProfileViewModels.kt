@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.recipebookapp.core.common.Resource
 import com.example.recipebookapp.core.presentation.AsyncState
+import com.example.recipebookapp.core.presentation.toAsyncState
 import com.example.recipebookapp.feature_auth.domain.LogoutUseCase
 import com.example.recipebookapp.feature_profile.domain.ProfileRepository
 import com.example.recipebookapp.feature_profile.domain.ProfileUseCases
@@ -45,16 +46,19 @@ class ProfileViewModel @Inject constructor(
     fun refresh() {
         viewModelScope.launch {
             _state.value = _state.value.copy(profileState = AsyncState.Loading)
-            when (val result = profileUseCases.getMyProfileWithRecipes()) {
-                is Resource.Success -> {
+            when (val state = profileUseCases.getMyProfileWithRecipes().toAsyncState()) {
+                is AsyncState.Success -> {
+                    val fields = profileUseCases.buildProfileEditorFields(state.data.profile)
                     _state.value = _state.value.copy(
-                        profileState = AsyncState.Success(result.data),
-                        editUsername = result.data.profile.username,
-                        editBio = result.data.profile.bio.orEmpty(),
-                        editAvatarUrl = result.data.profile.avatarUrl.orEmpty(),
+                        profileState = state,
+                        editUsername = fields.username,
+                        editBio = fields.bio,
+                        editAvatarUrl = fields.avatarUrl,
                     )
                 }
-                is Resource.Error -> _state.value = _state.value.copy(profileState = AsyncState.Error(result.message))
+                is AsyncState.Error -> _state.value = _state.value.copy(profileState = state)
+                AsyncState.Empty -> _state.value = _state.value.copy(profileState = state)
+                AsyncState.Loading -> Unit
             }
         }
     }
@@ -112,10 +116,9 @@ class OtherProfileViewModel @Inject constructor(
     fun refresh() {
         viewModelScope.launch {
             _state.value = _state.value.copy(profileState = AsyncState.Loading)
-            when (val result = profileUseCases.getOtherProfileWithRecipes(userId)) {
-                is Resource.Success -> _state.value = _state.value.copy(profileState = AsyncState.Success(result.data))
-                is Resource.Error -> _state.value = _state.value.copy(profileState = AsyncState.Error(result.message))
-            }
+            _state.value = _state.value.copy(
+                profileState = profileUseCases.getOtherProfileWithRecipes(userId).toAsyncState(),
+            )
         }
     }
 
