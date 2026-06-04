@@ -68,10 +68,14 @@ class ProfileViewModel @Inject constructor(
             _state.value = _state.value.copy(isSaving = true, error = null)
             when (val result = profileUseCases.updateProfile(_state.value.editUsername, _state.value.editBio, _state.value.editAvatarUrl)) {
                 is Resource.Success -> {
-                    val currentRecipes = (_state.value.profileState as? AsyncState.Success)?.data?.recipes.orEmpty()
                     _state.value = _state.value.copy(
                         isSaving = false,
-                        profileState = AsyncState.Success(ProfileWithRecipes(result.data, currentRecipes)),
+                        profileState = AsyncState.Success(
+                            profileUseCases.mergeUpdatedProfile(
+                                current = (_state.value.profileState as? AsyncState.Success)?.data,
+                                updatedProfile = result.data,
+                            ),
+                        ),
                         error = null,
                     )
                 }

@@ -156,7 +156,7 @@ class RecipeDetailsViewModel @Inject constructor(
 
     fun setRating(value: Int) {
         val previous = (_state.value.detailsState as? AsyncState.Success)?.data ?: return
-        val optimistic = previous.applyRating(value)
+        val optimistic = recipeUseCases.applyOptimisticRating(previous, value)
         _state.value = _state.value.copy(
             detailsState = AsyncState.Success(optimistic),
             actionInProgress = true,
@@ -181,7 +181,7 @@ class RecipeDetailsViewModel @Inject constructor(
 
     fun toggleFavorite() {
         val details = (_state.value.detailsState as? AsyncState.Success)?.data ?: return
-        val optimistic = details.copy(isFavorite = !details.isFavorite)
+        val optimistic = recipeUseCases.applyOptimisticFavorite(details)
         _state.value = _state.value.copy(
             detailsState = AsyncState.Success(optimistic),
             actionInProgress = true,
@@ -210,10 +210,8 @@ class RecipeDetailsViewModel @Inject constructor(
         viewModelScope.launch {
             when (val result = recipeUseCases.addRecipeComment(recipeId, text)) {
                 is Resource.Success -> {
-                    val updatedComments = when (val commentsState = _state.value.commentsState) {
-                        is AsyncState.Success -> listOf(result.data) + commentsState.data
-                        else -> listOf(result.data)
-                    }
+                    val existingComments = (_state.value.commentsState as? AsyncState.Success)?.data.orEmpty()
+                    val updatedComments = recipeUseCases.prependComment(existingComments, result.data)
                     _state.value = _state.value.copy(
                         commentText = "",
                         commentsState = AsyncState.Success(updatedComments),
@@ -224,49 +222,6 @@ class RecipeDetailsViewModel @Inject constructor(
                 }
             }
         }
-    }
-}
-
-private fun RecipeDetails.applyRating(newValue: Int): RecipeDetails {
-    val previousRating = myRating
-    if (previousRating == newValue) {
-        return when (newValue) {
-            1 -> copy(likesCount = (likesCount - 1).coerceAtLeast(0), rating = rating - 1, myRating = null)
-            -1 -> copy(dislikesCount = (dislikesCount - 1).coerceAtLeast(0), rating = rating + 1, myRating = null)
-            else -> this
-        }
-    }
-
-    return when (newValue) {
-        1 -> when (previousRating) {
-            -1 -> copy(
-                likesCount = likesCount + 1,
-                dislikesCount = (dislikesCount - 1).coerceAtLeast(0),
-                rating = rating + 2,
-                myRating = 1,
-            )
-            null -> copy(
-                likesCount = likesCount + 1,
-                rating = rating + 1,
-                myRating = 1,
-            )
-            else -> this
-        }
-        -1 -> when (previousRating) {
-            1 -> copy(
-                likesCount = (likesCount - 1).coerceAtLeast(0),
-                dislikesCount = dislikesCount + 1,
-                rating = rating - 2,
-                myRating = -1,
-            )
-            null -> copy(
-                dislikesCount = dislikesCount + 1,
-                rating = rating - 1,
-                myRating = -1,
-            )
-            else -> this
-        }
-        else -> this
     }
 }
 
@@ -289,7 +244,7 @@ class EditRecipeViewModel @Inject constructor(
             viewModelScope.launch {
                 when (val result = recipeUseCases.getRecipeDetails(recipeId)) {
                     is Resource.Success -> {
-                        _state.value = _state.value.copy(draft = result.data.toDraft())
+                        _state.value = _state.value.copy(draft = recipeUseCases.buildRecipeDraft(result.data))
                     }
                     is Resource.Error -> _state.value = _state.value.copy(error = result.message)
                 }
@@ -319,13 +274,3 @@ class EditRecipeViewModel @Inject constructor(
         }
     }
 }
-
-private fun RecipeDetails.toDraft(): RecipeDraft = RecipeDraft(
-    title = title,
-    description = description,
-    category = category,
-    cookingTimeMinutes = cookingTimeMinutes.toString(),
-    ingredients = ingredients.ifEmpty { listOf("") },
-    steps = steps.ifEmpty { listOf("") },
-    imageUrls = imageUrls.ifEmpty { listOf("") },
-)
