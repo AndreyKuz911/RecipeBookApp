@@ -1,12 +1,15 @@
 package com.example.recipebookapp.feature_profile.domain
 
 import com.example.recipebookapp.core.model.UserProfile
+import com.example.recipebookapp.core.common.Resource
+import com.example.recipebookapp.feature_profile.domain.model.EditableProfileData
 import com.example.recipebookapp.feature_profile.domain.model.ProfileEditorFields
 import com.example.recipebookapp.feature_profile.domain.model.ProfileWithRecipes
 import javax.inject.Inject
 
 data class ProfileUseCases @Inject constructor(
     val getMyProfileWithRecipes: GetMyProfileWithRecipesUseCase,
+    val getEditableMyProfile: GetEditableMyProfileUseCase,
     val getOtherProfileWithRecipes: GetOtherProfileWithRecipesUseCase,
     val updateProfile: UpdateProfileUseCase,
     val setFollowing: SetFollowingUseCase,
@@ -18,6 +21,21 @@ class GetMyProfileWithRecipesUseCase @Inject constructor(
     private val repository: ProfileRepository,
 ) {
     suspend operator fun invoke() = repository.getMyProfileWithRecipes()
+}
+
+class GetEditableMyProfileUseCase @Inject constructor(
+    private val getMyProfileWithRecipes: GetMyProfileWithRecipesUseCase,
+    private val buildProfileEditorFields: BuildProfileEditorFieldsUseCase,
+) {
+    suspend operator fun invoke(): Resource<EditableProfileData> = when (val result = getMyProfileWithRecipes()) {
+        is Resource.Success -> Resource.Success(
+            EditableProfileData(
+                profile = result.data,
+                editorFields = buildProfileEditorFields(result.data.profile),
+            ),
+        )
+        is Resource.Error -> result
+    }
 }
 
 class GetOtherProfileWithRecipesUseCase @Inject constructor(
@@ -58,6 +76,10 @@ class MergeUpdatedProfileUseCase @Inject constructor() {
 
 fun profileUseCases(repository: ProfileRepository): ProfileUseCases = ProfileUseCases(
     getMyProfileWithRecipes = GetMyProfileWithRecipesUseCase(repository),
+    getEditableMyProfile = GetEditableMyProfileUseCase(
+        getMyProfileWithRecipes = GetMyProfileWithRecipesUseCase(repository),
+        buildProfileEditorFields = BuildProfileEditorFieldsUseCase(),
+    ),
     getOtherProfileWithRecipes = GetOtherProfileWithRecipesUseCase(repository),
     updateProfile = UpdateProfileUseCase(repository),
     setFollowing = SetFollowingUseCase(repository),

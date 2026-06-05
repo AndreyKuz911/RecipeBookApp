@@ -6,12 +6,23 @@ import com.example.recipebookapp.core.model.RecipeDetails
 import com.example.recipebookapp.core.model.UserProfile
 import com.example.recipebookapp.core.model.UserSummary
 import com.example.recipebookapp.feature_profile.domain.BuildProfileEditorFieldsUseCase
+import com.example.recipebookapp.feature_profile.domain.GetEditableMyProfileUseCase
 import com.example.recipebookapp.feature_profile.domain.MergeUpdatedProfileUseCase
+import com.example.recipebookapp.feature_profile.domain.GetMyProfileWithRecipesUseCase
+import com.example.recipebookapp.feature_profile.domain.ProfileRepository
 import com.example.recipebookapp.feature_profile.domain.model.ProfileWithRecipes
 import com.example.recipebookapp.feature_recipes.domain.ApplyOptimisticFavoriteUseCase
 import com.example.recipebookapp.feature_recipes.domain.ApplyOptimisticRatingUseCase
 import com.example.recipebookapp.feature_recipes.domain.BuildRecipeDraftUseCase
+import com.example.recipebookapp.feature_recipes.domain.GetRecipeCommentsUseCase
+import com.example.recipebookapp.feature_recipes.domain.GetRecipeDetailsUseCase
+import com.example.recipebookapp.feature_recipes.domain.LoadRecipeDetailsContentUseCase
 import com.example.recipebookapp.feature_recipes.domain.PrependCommentUseCase
+import com.example.recipebookapp.feature_recipes.domain.RecipeDraft
+import com.example.recipebookapp.feature_recipes.domain.RecipesRepository
+import com.example.recipebookapp.feature_recipes.domain.model.PagedRecipes
+import com.example.recipebookapp.feature_recipes.domain.model.RecipeFilters
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -120,6 +131,57 @@ class RecipeDomainUseCasesTest {
         assertEquals("chef", fields.username)
         assertEquals("", fields.bio)
         assertEquals("", fields.avatarUrl)
+    }
+
+    @Test
+    fun `load recipe details content returns details and comments together`() = runTest {
+        val repository = object : RecipesRepository {
+            override suspend fun getRecipes(filters: RecipeFilters, page: Int, limit: Int) = error("Not used")
+            override suspend fun getRecipeDetails(recipeId: String) = com.example.recipebookapp.core.common.Resource.Success(sampleDetails())
+            override suspend fun createRecipe(draft: RecipeDraft) = error("Not used")
+            override suspend fun updateRecipe(recipeId: String, draft: RecipeDraft) = error("Not used")
+            override suspend fun deleteRecipe(recipeId: String) = error("Not used")
+            override suspend fun rateRecipe(recipeId: String, value: Int) = error("Not used")
+            override suspend fun clearRating(recipeId: String) = error("Not used")
+            override suspend fun toggleFavorite(recipeId: String, currentlyFavorite: Boolean) = error("Not used")
+            override suspend fun getComments(recipeId: String) = com.example.recipebookapp.core.common.Resource.Success(listOf(sampleComment("c1")))
+            override suspend fun addComment(recipeId: String, text: String, parentCommentId: String?) = error("Not used")
+        }
+
+        val result = LoadRecipeDetailsContentUseCase(
+            getRecipeDetails = GetRecipeDetailsUseCase(repository),
+            getRecipeComments = GetRecipeCommentsUseCase(repository),
+        )("r1")
+
+        assertTrue(result.details is com.example.recipebookapp.core.common.Resource.Success)
+        assertTrue(result.comments is com.example.recipebookapp.core.common.Resource.Success)
+        assertEquals(1, (result.comments as com.example.recipebookapp.core.common.Resource.Success).data.size)
+    }
+
+    @Test
+    fun `get editable my profile returns profile and editor fields`() = runTest {
+        val repository = object : ProfileRepository {
+            override suspend fun getMyProfileWithRecipes() = com.example.recipebookapp.core.common.Resource.Success(
+                ProfileWithRecipes(
+                    profile = sampleProfile("chef").copy(bio = null, avatarUrl = null),
+                    recipes = listOf(sampleRecipe("r1")),
+                ),
+            )
+            override suspend fun getOtherProfileWithRecipes(userId: String) = error("Not used")
+            override suspend fun updateProfile(username: String, bio: String, avatarUrl: String) = error("Not used")
+            override suspend fun setFollowing(userId: String, shouldFollow: Boolean) = error("Not used")
+        }
+
+        val result = GetEditableMyProfileUseCase(
+            getMyProfileWithRecipes = GetMyProfileWithRecipesUseCase(repository),
+            buildProfileEditorFields = BuildProfileEditorFieldsUseCase(),
+        )()
+
+        assertTrue(result is com.example.recipebookapp.core.common.Resource.Success)
+        val data = (result as com.example.recipebookapp.core.common.Resource.Success).data
+        assertEquals("chef", data.profile.profile.username)
+        assertEquals("", data.editorFields.bio)
+        assertEquals("", data.editorFields.avatarUrl)
     }
 
     private fun sampleDetails(

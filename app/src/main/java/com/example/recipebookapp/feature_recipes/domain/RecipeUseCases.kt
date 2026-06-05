@@ -2,13 +2,17 @@ package com.example.recipebookapp.feature_recipes.domain
 
 import com.example.recipebookapp.core.model.Comment
 import com.example.recipebookapp.core.model.RecipeDetails
+import com.example.recipebookapp.feature_recipes.domain.model.RecipeDetailsContent
 import com.example.recipebookapp.feature_recipes.domain.model.RecipeFilters
 import javax.inject.Inject
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 
 data class RecipeUseCases @Inject constructor(
     val getRecipes: GetRecipesUseCase,
     val getRecipeDetails: GetRecipeDetailsUseCase,
     val getRecipeComments: GetRecipeCommentsUseCase,
+    val loadRecipeDetailsContent: LoadRecipeDetailsContentUseCase,
     val rateRecipe: RateRecipeUseCase,
     val toggleRecipeFavorite: ToggleRecipeFavoriteUseCase,
     val addRecipeComment: AddRecipeCommentUseCase,
@@ -35,6 +39,20 @@ class GetRecipeCommentsUseCase @Inject constructor(
     private val repository: RecipesRepository,
 ) {
     suspend operator fun invoke(recipeId: String) = repository.getComments(recipeId)
+}
+
+class LoadRecipeDetailsContentUseCase @Inject constructor(
+    private val getRecipeDetails: GetRecipeDetailsUseCase,
+    private val getRecipeComments: GetRecipeCommentsUseCase,
+) {
+    suspend operator fun invoke(recipeId: String): RecipeDetailsContent = coroutineScope {
+        val detailsDeferred = async { getRecipeDetails(recipeId) }
+        val commentsDeferred = async { getRecipeComments(recipeId) }
+        RecipeDetailsContent(
+            details = detailsDeferred.await(),
+            comments = commentsDeferred.await(),
+        )
+    }
 }
 
 class RateRecipeUseCase @Inject constructor(
@@ -143,6 +161,10 @@ fun recipeUseCases(repository: RecipesRepository): RecipeUseCases = RecipeUseCas
     getRecipes = GetRecipesUseCase(repository),
     getRecipeDetails = GetRecipeDetailsUseCase(repository),
     getRecipeComments = GetRecipeCommentsUseCase(repository),
+    loadRecipeDetailsContent = LoadRecipeDetailsContentUseCase(
+        getRecipeDetails = GetRecipeDetailsUseCase(repository),
+        getRecipeComments = GetRecipeCommentsUseCase(repository),
+    ),
     rateRecipe = RateRecipeUseCase(repository),
     toggleRecipeFavorite = ToggleRecipeFavoriteUseCase(repository),
     addRecipeComment = AddRecipeCommentUseCase(repository),

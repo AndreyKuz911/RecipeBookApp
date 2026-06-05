@@ -46,18 +46,18 @@ class ProfileViewModel @Inject constructor(
     fun refresh() {
         viewModelScope.launch {
             _state.value = _state.value.copy(profileState = AsyncState.Loading)
-            when (val state = profileUseCases.getMyProfileWithRecipes().toAsyncState()) {
+            when (val state = profileUseCases.getEditableMyProfile().toAsyncState()) {
                 is AsyncState.Success -> {
-                    val fields = profileUseCases.buildProfileEditorFields(state.data.profile)
+                    val fields = state.data.editorFields
                     _state.value = _state.value.copy(
-                        profileState = state,
+                        profileState = AsyncState.Success(state.data.profile),
                         editUsername = fields.username,
                         editBio = fields.bio,
                         editAvatarUrl = fields.avatarUrl,
                     )
                 }
                 is AsyncState.Error -> _state.value = _state.value.copy(profileState = state)
-                AsyncState.Empty -> _state.value = _state.value.copy(profileState = state)
+                AsyncState.Empty -> _state.value = _state.value.copy(profileState = AsyncState.Empty)
                 AsyncState.Loading -> Unit
             }
         }

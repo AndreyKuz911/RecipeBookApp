@@ -16,8 +16,6 @@ import com.example.recipebookapp.feature_recipes.domain.model.PagedRecipes
 import com.example.recipebookapp.feature_recipes.domain.model.RecipeFilters
 import com.example.recipebookapp.feature_recipes.domain.recipeUseCases
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -127,17 +125,11 @@ class RecipeDetailsViewModel @Inject constructor(
     fun refresh() {
         viewModelScope.launch {
             _state.value = _state.value.copy(detailsState = AsyncState.Loading, commentsState = AsyncState.Loading)
-            coroutineScope {
-                val detailsDeferred = async { recipeUseCases.getRecipeDetails(recipeId) }
-                val commentsDeferred = async { recipeUseCases.getRecipeComments(recipeId) }
-
-                val details = detailsDeferred.await()
-                val comments = commentsDeferred.await()
-                _state.value = _state.value.copy(
-                    detailsState = details.toAsyncState(),
-                    commentsState = comments.toAsyncState(List<Comment>::isEmpty),
-                )
-            }
+            val content = recipeUseCases.loadRecipeDetailsContent(recipeId)
+            _state.value = _state.value.copy(
+                detailsState = content.details.toAsyncState(),
+                commentsState = content.comments.toAsyncState(List<Comment>::isEmpty),
+            )
         }
     }
 
