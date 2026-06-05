@@ -70,16 +70,12 @@ class ProfileViewModel @Inject constructor(
     fun saveProfile() {
         viewModelScope.launch {
             _state.value = _state.value.copy(isSaving = true, error = null)
-            when (val result = profileUseCases.updateProfile(_state.value.editUsername, _state.value.editBio, _state.value.editAvatarUrl)) {
+            val current = (_state.value.profileState as? AsyncState.Success)?.data
+            when (val result = profileUseCases.updateProfileSnapshot(current, _state.value.editUsername, _state.value.editBio, _state.value.editAvatarUrl)) {
                 is Resource.Success -> {
                     _state.value = _state.value.copy(
                         isSaving = false,
-                        profileState = AsyncState.Success(
-                            profileUseCases.mergeUpdatedProfile(
-                                current = (_state.value.profileState as? AsyncState.Success)?.data,
-                                updatedProfile = result.data,
-                            ),
-                        ),
+                        profileState = AsyncState.Success(result.data),
                         error = null,
                     )
                 }
@@ -125,8 +121,11 @@ class OtherProfileViewModel @Inject constructor(
     fun toggleFollow() {
         val data = (_state.value.profileState as? AsyncState.Success)?.data ?: return
         viewModelScope.launch {
-            when (val result = profileUseCases.setFollowing(userId, !data.profile.isFollowing)) {
-                is Resource.Success -> refresh()
+            when (val result = profileUseCases.toggleFollowingProfile(data, userId)) {
+                is Resource.Success -> _state.value = _state.value.copy(
+                    profileState = AsyncState.Success(result.data),
+                    error = null,
+                )
                 is Resource.Error -> _state.value = _state.value.copy(error = result.message)
             }
         }

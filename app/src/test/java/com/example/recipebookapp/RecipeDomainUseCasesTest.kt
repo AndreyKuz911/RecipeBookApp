@@ -7,16 +7,23 @@ import com.example.recipebookapp.core.model.UserProfile
 import com.example.recipebookapp.core.model.UserSummary
 import com.example.recipebookapp.feature_profile.domain.BuildProfileEditorFieldsUseCase
 import com.example.recipebookapp.feature_profile.domain.GetEditableMyProfileUseCase
+import com.example.recipebookapp.feature_profile.domain.ToggleFollowingProfileUseCase
 import com.example.recipebookapp.feature_profile.domain.MergeUpdatedProfileUseCase
 import com.example.recipebookapp.feature_profile.domain.GetMyProfileWithRecipesUseCase
 import com.example.recipebookapp.feature_profile.domain.ProfileRepository
+import com.example.recipebookapp.feature_profile.domain.SetFollowingUseCase
+import com.example.recipebookapp.feature_profile.domain.GetOtherProfileWithRecipesUseCase
+import com.example.recipebookapp.feature_profile.domain.UpdateProfileSnapshotUseCase
+import com.example.recipebookapp.feature_profile.domain.UpdateProfileUseCase
 import com.example.recipebookapp.feature_profile.domain.model.ProfileWithRecipes
 import com.example.recipebookapp.feature_recipes.domain.ApplyOptimisticFavoriteUseCase
 import com.example.recipebookapp.feature_recipes.domain.ApplyOptimisticRatingUseCase
 import com.example.recipebookapp.feature_recipes.domain.BuildRecipeDraftUseCase
 import com.example.recipebookapp.feature_recipes.domain.GetRecipeCommentsUseCase
 import com.example.recipebookapp.feature_recipes.domain.GetRecipeDetailsUseCase
+import com.example.recipebookapp.feature_recipes.domain.GetRecipesUseCase
 import com.example.recipebookapp.feature_recipes.domain.LoadRecipeDetailsContentUseCase
+import com.example.recipebookapp.feature_recipes.domain.LoadRecipeListUseCase
 import com.example.recipebookapp.feature_recipes.domain.PrependCommentUseCase
 import com.example.recipebookapp.feature_recipes.domain.RecipeDraft
 import com.example.recipebookapp.feature_recipes.domain.RecipesRepository
@@ -182,6 +189,82 @@ class RecipeDomainUseCasesTest {
         assertEquals("chef", data.profile.profile.username)
         assertEquals("", data.editorFields.bio)
         assertEquals("", data.editorFields.avatarUrl)
+    }
+
+    @Test
+    fun `load recipe list extracts paged items into domain list`() = runTest {
+        val repository = object : RecipesRepository {
+            override suspend fun getRecipes(filters: RecipeFilters, page: Int, limit: Int) =
+                com.example.recipebookapp.core.common.Resource.Success(
+                    PagedRecipes(
+                        items = listOf(sampleRecipe("r1")),
+                        page = 1,
+                        limit = 20,
+                        total = 1,
+                    ),
+                )
+            override suspend fun getRecipeDetails(recipeId: String) = error("Not used")
+            override suspend fun createRecipe(draft: RecipeDraft) = error("Not used")
+            override suspend fun updateRecipe(recipeId: String, draft: RecipeDraft) = error("Not used")
+            override suspend fun deleteRecipe(recipeId: String) = error("Not used")
+            override suspend fun rateRecipe(recipeId: String, value: Int) = error("Not used")
+            override suspend fun clearRating(recipeId: String) = error("Not used")
+            override suspend fun toggleFavorite(recipeId: String, currentlyFavorite: Boolean) = error("Not used")
+            override suspend fun getComments(recipeId: String) = error("Not used")
+            override suspend fun addComment(recipeId: String, text: String, parentCommentId: String?) = error("Not used")
+        }
+
+        val result = LoadRecipeListUseCase(GetRecipesUseCase(repository))(RecipeFilters())
+
+        assertTrue(result is com.example.recipebookapp.core.common.Resource.Success)
+        assertEquals(1, (result as com.example.recipebookapp.core.common.Resource.Success).data.size)
+    }
+
+    @Test
+    fun `update profile snapshot merges updated profile with existing recipes`() = runTest {
+        val repository = object : ProfileRepository {
+            override suspend fun getMyProfileWithRecipes() = error("Not used")
+            override suspend fun getOtherProfileWithRecipes(userId: String) = error("Not used")
+            override suspend fun updateProfile(username: String, bio: String, avatarUrl: String) =
+                com.example.recipebookapp.core.common.Resource.Success(
+                    sampleProfile(username).copy(bio = bio, avatarUrl = avatarUrl),
+                )
+            override suspend fun setFollowing(userId: String, shouldFollow: Boolean) = error("Not used")
+        }
+        val current = ProfileWithRecipes(sampleProfile("old"), listOf(sampleRecipe("r1")))
+
+        val result = UpdateProfileSnapshotUseCase(
+            updateProfile = UpdateProfileUseCase(repository),
+            mergeUpdatedProfile = MergeUpdatedProfileUseCase(),
+        )(current, "new", "bio2", "avatar")
+
+        assertTrue(result is com.example.recipebookapp.core.common.Resource.Success)
+        val data = (result as com.example.recipebookapp.core.common.Resource.Success).data
+        assertEquals("new", data.profile.username)
+        assertEquals(1, data.recipes.size)
+    }
+
+    @Test
+    fun `toggle following profile reloads updated other profile`() = runTest {
+        val repository = object : ProfileRepository {
+            override suspend fun getMyProfileWithRecipes() = error("Not used")
+            override suspend fun getOtherProfileWithRecipes(userId: String) =
+                com.example.recipebookapp.core.common.Resource.Success(
+                    ProfileWithRecipes(sampleProfile("chef").copy(id = userId, isFollowing = true), emptyList()),
+                )
+            override suspend fun updateProfile(username: String, bio: String, avatarUrl: String) = error("Not used")
+            override suspend fun setFollowing(userId: String, shouldFollow: Boolean) =
+                com.example.recipebookapp.core.common.Resource.Success(Unit)
+        }
+        val current = ProfileWithRecipes(sampleProfile("chef").copy(id = "u2", isFollowing = false), emptyList())
+
+        val result = ToggleFollowingProfileUseCase(
+            setFollowing = SetFollowingUseCase(repository),
+            getOtherProfileWithRecipes = GetOtherProfileWithRecipesUseCase(repository),
+        )(current, "u2")
+
+        assertTrue(result is com.example.recipebookapp.core.common.Resource.Success)
+        assertTrue((result as com.example.recipebookapp.core.common.Resource.Success).data.profile.isFollowing)
     }
 
     private fun sampleDetails(

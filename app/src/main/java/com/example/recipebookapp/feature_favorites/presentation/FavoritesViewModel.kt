@@ -30,7 +30,7 @@ class FavoritesViewModel @Inject constructor(
     fun refresh() {
         viewModelScope.launch {
             _state.value = AsyncState.Loading
-            when (val result = favoritesUseCases.getFavorites()) {
+            when (val result = favoritesUseCases.loadFavorites()) {
                 is Resource.Success -> _state.value = if (result.data.isEmpty()) AsyncState.Empty else AsyncState.Success(result.data)
                 is Resource.Error -> _state.value = AsyncState.Error(result.message)
             }
@@ -42,7 +42,7 @@ class FavoritesViewModel @Inject constructor(
         viewModelScope.launch {
             when (favoritesUseCases.removeFavorite(recipeId)) {
                 is Resource.Success -> {
-                    val updated = current.filterNot { it.id == recipeId }
+                    val updated = favoritesUseCases.applyRemovedFavorite(current, recipeId)
                     _state.value = if (updated.isEmpty()) AsyncState.Empty else AsyncState.Success(updated)
                 }
                 is Resource.Error -> refresh()

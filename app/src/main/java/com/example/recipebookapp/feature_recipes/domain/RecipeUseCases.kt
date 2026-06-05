@@ -1,6 +1,7 @@
 package com.example.recipebookapp.feature_recipes.domain
 
 import com.example.recipebookapp.core.model.Comment
+import com.example.recipebookapp.core.model.Recipe
 import com.example.recipebookapp.core.model.RecipeDetails
 import com.example.recipebookapp.feature_recipes.domain.model.RecipeDetailsContent
 import com.example.recipebookapp.feature_recipes.domain.model.RecipeFilters
@@ -10,6 +11,7 @@ import kotlinx.coroutines.coroutineScope
 
 data class RecipeUseCases @Inject constructor(
     val getRecipes: GetRecipesUseCase,
+    val loadRecipeList: LoadRecipeListUseCase,
     val getRecipeDetails: GetRecipeDetailsUseCase,
     val getRecipeComments: GetRecipeCommentsUseCase,
     val loadRecipeDetailsContent: LoadRecipeDetailsContentUseCase,
@@ -27,6 +29,16 @@ class GetRecipesUseCase @Inject constructor(
     private val repository: RecipesRepository,
 ) {
     suspend operator fun invoke(filters: RecipeFilters) = repository.getRecipes(filters)
+}
+
+class LoadRecipeListUseCase @Inject constructor(
+    private val getRecipes: GetRecipesUseCase,
+) {
+    suspend operator fun invoke(filters: RecipeFilters) = when (val result = getRecipes(filters)) {
+        is com.example.recipebookapp.core.common.Resource.Success ->
+            com.example.recipebookapp.core.common.Resource.Success(result.data.items)
+        is com.example.recipebookapp.core.common.Resource.Error -> result
+    }
 }
 
 class GetRecipeDetailsUseCase @Inject constructor(
@@ -159,6 +171,9 @@ class PrependCommentUseCase @Inject constructor() {
 
 fun recipeUseCases(repository: RecipesRepository): RecipeUseCases = RecipeUseCases(
     getRecipes = GetRecipesUseCase(repository),
+    loadRecipeList = LoadRecipeListUseCase(
+        getRecipes = GetRecipesUseCase(repository),
+    ),
     getRecipeDetails = GetRecipeDetailsUseCase(repository),
     getRecipeComments = GetRecipeCommentsUseCase(repository),
     loadRecipeDetailsContent = LoadRecipeDetailsContentUseCase(

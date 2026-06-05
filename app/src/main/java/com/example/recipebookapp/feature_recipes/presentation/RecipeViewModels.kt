@@ -12,7 +12,6 @@ import com.example.recipebookapp.core.presentation.toAsyncState
 import com.example.recipebookapp.feature_recipes.domain.RecipeDraft
 import com.example.recipebookapp.feature_recipes.domain.RecipeUseCases
 import com.example.recipebookapp.feature_recipes.domain.RecipesRepository
-import com.example.recipebookapp.feature_recipes.domain.model.PagedRecipes
 import com.example.recipebookapp.feature_recipes.domain.model.RecipeFilters
 import com.example.recipebookapp.feature_recipes.domain.recipeUseCases
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -40,13 +39,6 @@ data class RecipeEditorUiState(
     val savedRecipeId: String? = null,
 )
 
-private fun Resource<PagedRecipes>.toRecipeListState(): AsyncState<List<Recipe>> = when (val state = toAsyncState { it.items.isEmpty() }) {
-    is AsyncState.Success -> AsyncState.Success(state.data.items)
-    AsyncState.Empty -> AsyncState.Empty
-    is AsyncState.Error -> state
-    AsyncState.Loading -> AsyncState.Loading
-}
-
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val recipeUseCases: RecipeUseCases,
@@ -63,8 +55,8 @@ class HomeViewModel @Inject constructor(
     fun loadRecipes() {
         viewModelScope.launch {
             _state.value = _state.value.copy(state = AsyncState.Loading)
-            val result = recipeUseCases.getRecipes(RecipeFilters())
-            _state.value = _state.value.copy(state = result.toRecipeListState())
+            val result = recipeUseCases.loadRecipeList(RecipeFilters())
+            _state.value = _state.value.copy(state = result.toAsyncState(List<Recipe>::isEmpty))
         }
     }
 }
@@ -94,8 +86,8 @@ class SearchViewModel @Inject constructor(
     fun search() {
         viewModelScope.launch {
             _state.value = _state.value.copy(state = AsyncState.Loading)
-            val result = recipeUseCases.getRecipes(_state.value.filters)
-            _state.value = _state.value.copy(state = result.toRecipeListState())
+            val result = recipeUseCases.loadRecipeList(_state.value.filters)
+            _state.value = _state.value.copy(state = result.toAsyncState(List<Recipe>::isEmpty))
         }
     }
 }

@@ -30,7 +30,7 @@ class FeedViewModel @Inject constructor(
     fun refresh() {
         viewModelScope.launch {
             _state.value = AsyncState.Loading
-            when (val result = feedUseCases.getCulinaryNews()) {
+            when (val result = feedUseCases.loadFeed()) {
                 is Resource.Success -> _state.value = if (result.data.isEmpty()) AsyncState.Empty else AsyncState.Success(result.data)
                 is Resource.Error -> _state.value = AsyncState.Error(result.message)
             }
