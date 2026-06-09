@@ -1,5 +1,6 @@
 package com.example.recipebookapp.feature_recipes.presentation
 
+import com.example.recipebookapp.core.common.RecipeSyncNotifier
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -15,6 +16,7 @@ import com.example.recipebookapp.feature_recipes.domain.RecipesRepository
 import com.example.recipebookapp.feature_recipes.domain.model.RecipeFilters
 import com.example.recipebookapp.feature_recipes.domain.recipeUseCases
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -29,7 +31,8 @@ data class RecipeDetailsUiState(
     val detailsState: AsyncState<RecipeDetails> = AsyncState.Loading,
     val commentsState: AsyncState<List<Comment>> = AsyncState.Loading,
     val commentText: String = "",
-    val actionInProgress: Boolean = false,
+    val ratingInProgress: Boolean = false,
+    val favoriteInProgress: Boolean = false,
 )
 
 data class RecipeEditorUiState(
@@ -42,14 +45,23 @@ data class RecipeEditorUiState(
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val recipeUseCases: RecipeUseCases,
+    private val recipeSyncNotifier: RecipeSyncNotifier,
 ) : ViewModel() {
-    constructor(repository: RecipesRepository) : this(recipeUseCases(repository))
+    constructor(
+        repository: RecipesRepository,
+        recipeSyncNotifier: RecipeSyncNotifier = RecipeSyncNotifier(),
+    ) : this(recipeUseCases(repository), recipeSyncNotifier)
 
     private val _state = MutableStateFlow(RecipeListUiState())
     val state = _state.asStateFlow()
 
     init {
         loadRecipes()
+        viewModelScope.launch {
+            recipeSyncNotifier.recipeMutations.collect {
+                loadRecipes()
+            }
+        }
     }
 
     fun loadRecipes() {
@@ -64,14 +76,23 @@ class HomeViewModel @Inject constructor(
 @HiltViewModel
 class SearchViewModel @Inject constructor(
     private val recipeUseCases: RecipeUseCases,
+    private val recipeSyncNotifier: RecipeSyncNotifier,
 ) : ViewModel() {
-    constructor(repository: RecipesRepository) : this(recipeUseCases(repository))
+    constructor(
+        repository: RecipesRepository,
+        recipeSyncNotifier: RecipeSyncNotifier = RecipeSyncNotifier(),
+    ) : this(recipeUseCases(repository), recipeSyncNotifier)
 
     private val _state = MutableStateFlow(RecipeListUiState(filters = RecipeFilters()))
     val state = _state.asStateFlow()
 
     init {
         search()
+        viewModelScope.launch {
+            recipeSyncNotifier.recipeMutations.collect {
+                search()
+            }
+        }
     }
 
     fun updateFilters(filters: RecipeFilters) {
@@ -95,10 +116,16 @@ class SearchViewModel @Inject constructor(
 @HiltViewModel
 class RecipeDetailsViewModel @Inject constructor(
     private val recipeUseCases: RecipeUseCases,
+    private val recipeSyncNotifier: RecipeSyncNotifier,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
-    constructor(repository: RecipesRepository, savedStateHandle: SavedStateHandle) : this(
+    constructor(
+        repository: RecipesRepository,
+        savedStateHandle: SavedStateHandle,
+        recipeSyncNotifier: RecipeSyncNotifier = RecipeSyncNotifier(),
+    ) : this(
         recipeUseCases = recipeUseCases(repository),
+        recipeSyncNotifier = recipeSyncNotifier,
         savedStateHandle = savedStateHandle,
     )
 
@@ -130,20 +157,20 @@ class RecipeDetailsViewModel @Inject constructor(
         val optimistic = recipeUseCases.applyOptimisticRating(previous, value)
         _state.value = _state.value.copy(
             detailsState = AsyncState.Success(optimistic),
-            actionInProgress = true,
+            ratingInProgress = true,
         )
         viewModelScope.launch {
             when (val result = recipeUseCases.rateRecipe(recipeId, value)) {
                 is Resource.Success -> {
                     _state.value = _state.value.copy(
                         detailsState = AsyncState.Success(result.data),
-                        actionInProgress = false,
+                        ratingInProgress = false,
                     )
                 }
                 is Resource.Error -> {
                     _state.value = _state.value.copy(
                         detailsState = AsyncState.Success(previous),
-                        actionInProgress = false,
+                        ratingInProgress = false,
                     )
                 }
             }
@@ -155,20 +182,21 @@ class RecipeDetailsViewModel @Inject constructor(
         val optimistic = recipeUseCases.applyOptimisticFavorite(details)
         _state.value = _state.value.copy(
             detailsState = AsyncState.Success(optimistic),
-            actionInProgress = true,
+            favoriteInProgress = true,
         )
         viewModelScope.launch {
             when (val result = recipeUseCases.toggleRecipeFavorite(recipeId, details.isFavorite)) {
                 is Resource.Success -> {
                     _state.value = _state.value.copy(
                         detailsState = AsyncState.Success(result.data),
-                        actionInProgress = false,
+                        favoriteInProgress = false,
                     )
+                    recipeSyncNotifier.notifyFavoriteMutated()
                 }
                 is Resource.Error -> {
                     _state.value = _state.value.copy(
                         detailsState = AsyncState.Success(details),
-                        actionInProgress = false,
+                        favoriteInProgress = false,
                     )
                 }
             }
@@ -199,10 +227,16 @@ class RecipeDetailsViewModel @Inject constructor(
 @HiltViewModel
 class EditRecipeViewModel @Inject constructor(
     private val recipeUseCases: RecipeUseCases,
+    private val recipeSyncNotifier: RecipeSyncNotifier,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
-    constructor(repository: RecipesRepository, savedStateHandle: SavedStateHandle) : this(
+    constructor(
+        repository: RecipesRepository,
+        savedStateHandle: SavedStateHandle,
+        recipeSyncNotifier: RecipeSyncNotifier = RecipeSyncNotifier(),
+    ) : this(
         recipeUseCases = recipeUseCases(repository),
+        recipeSyncNotifier = recipeSyncNotifier,
         savedStateHandle = savedStateHandle,
     )
 
@@ -236,10 +270,13 @@ class EditRecipeViewModel @Inject constructor(
                 recipeUseCases.saveRecipe.update(recipeId, _state.value.draft)
             }
             when (result) {
-                is Resource.Success -> _state.value = _state.value.copy(
-                    isLoading = false,
-                    savedRecipeId = result.data.id,
-                )
+                is Resource.Success -> {
+                    recipeSyncNotifier.notifyRecipeMutated()
+                    _state.value = _state.value.copy(
+                        isLoading = false,
+                        savedRecipeId = result.data.id,
+                    )
+                }
                 is Resource.Error -> _state.value = _state.value.copy(isLoading = false, error = result.message)
             }
         }

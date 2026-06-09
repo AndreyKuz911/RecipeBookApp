@@ -3,6 +3,7 @@ package com.example.recipebookapp.feature_profile.presentation
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.recipebookapp.core.common.RecipeSyncNotifier
 import com.example.recipebookapp.core.common.Resource
 import com.example.recipebookapp.core.presentation.AsyncState
 import com.example.recipebookapp.core.presentation.toAsyncState
@@ -12,6 +13,7 @@ import com.example.recipebookapp.feature_profile.domain.ProfileUseCases
 import com.example.recipebookapp.feature_profile.domain.model.ProfileWithRecipes
 import com.example.recipebookapp.feature_profile.domain.profileUseCases
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -30,10 +32,16 @@ data class ProfileUiState(
 class ProfileViewModel @Inject constructor(
     private val profileUseCases: ProfileUseCases,
     private val logoutUseCase: LogoutUseCase,
+    private val recipeSyncNotifier: RecipeSyncNotifier,
 ) : ViewModel() {
-    constructor(repository: ProfileRepository, logoutUseCase: LogoutUseCase) : this(
+    constructor(
+        repository: ProfileRepository,
+        logoutUseCase: LogoutUseCase,
+        recipeSyncNotifier: RecipeSyncNotifier = RecipeSyncNotifier(),
+    ) : this(
         profileUseCases = profileUseCases(repository),
         logoutUseCase = logoutUseCase,
+        recipeSyncNotifier = recipeSyncNotifier,
     )
 
     private val _state = MutableStateFlow(ProfileUiState())
@@ -41,6 +49,11 @@ class ProfileViewModel @Inject constructor(
 
     init {
         refresh()
+        viewModelScope.launch {
+            recipeSyncNotifier.recipeMutations.collect {
+                refresh()
+            }
+        }
     }
 
     fun refresh() {

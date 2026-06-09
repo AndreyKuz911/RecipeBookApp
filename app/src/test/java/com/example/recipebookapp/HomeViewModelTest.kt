@@ -1,5 +1,6 @@
 package com.example.recipebookapp
 
+import com.example.recipebookapp.core.common.RecipeSyncNotifier
 import com.example.recipebookapp.core.common.Resource
 import com.example.recipebookapp.core.model.Recipe
 import com.example.recipebookapp.core.model.UserSummary
@@ -9,6 +10,8 @@ import com.example.recipebookapp.feature_recipes.domain.RecipesRepository
 import com.example.recipebookapp.feature_recipes.domain.model.PagedRecipes
 import com.example.recipebookapp.feature_recipes.domain.model.RecipeFilters
 import com.example.recipebookapp.feature_recipes.presentation.HomeViewModel
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -35,6 +38,22 @@ class HomeViewModelTest {
         val state = viewModel.state.value.state
         assertTrue(state is AsyncState.Error)
         assertEquals("Network error", (state as AsyncState.Error).message)
+    }
+
+    @Test
+    fun `recipe mutation refreshes home list`() = runTest {
+        val repository = FakeMutableRecipesRepository()
+        val notifier = RecipeSyncNotifier()
+        val viewModel = HomeViewModel(repository, notifier)
+        advanceUntilIdle()
+
+        repository.result = Resource.Success(PagedRecipes(listOf(sampleRecipe().copy(id = "2")), 1, 20, 1))
+        notifier.notifyRecipeMutated()
+        advanceUntilIdle()
+
+        val state = viewModel.state.value.state as AsyncState.Success
+        assertEquals("2", state.data.first().id)
+        assertEquals(2, repository.loadCount)
     }
 }
 
@@ -69,3 +88,23 @@ private fun sampleRecipe(): Recipe = Recipe(
     isFavorite = false,
     myRating = null,
 )
+
+private class FakeMutableRecipesRepository : RecipesRepository {
+    var result: Resource<PagedRecipes> = Resource.Success(PagedRecipes(listOf(sampleRecipe()), 1, 20, 1))
+    var loadCount: Int = 0
+
+    override suspend fun getRecipes(filters: RecipeFilters, page: Int, limit: Int): Resource<PagedRecipes> {
+        loadCount += 1
+        return result
+    }
+
+    override suspend fun getRecipeDetails(recipeId: String) = error("Not used")
+    override suspend fun createRecipe(draft: RecipeDraft) = error("Not used")
+    override suspend fun updateRecipe(recipeId: String, draft: RecipeDraft) = error("Not used")
+    override suspend fun deleteRecipe(recipeId: String) = error("Not used")
+    override suspend fun rateRecipe(recipeId: String, value: Int) = error("Not used")
+    override suspend fun clearRating(recipeId: String) = error("Not used")
+    override suspend fun toggleFavorite(recipeId: String, currentlyFavorite: Boolean) = error("Not used")
+    override suspend fun getComments(recipeId: String) = error("Not used")
+    override suspend fun addComment(recipeId: String, text: String, parentCommentId: String?) = error("Not used")
+}

@@ -294,7 +294,7 @@ fun RecipeDetailsScreen(
                                         modifier = Modifier.weight(1f),
                                         onClick = { viewModel.setRating(1) },
                                         shape = RoundedCornerShape(14.dp),
-                                        enabled = !state.actionInProgress,
+                                        enabled = !state.ratingInProgress,
                                     ) {
                                         Icon(Icons.Outlined.ThumbUp, contentDescription = null)
                                         Spacer(modifier = Modifier.width(6.dp))
@@ -304,7 +304,7 @@ fun RecipeDetailsScreen(
                                         modifier = Modifier.weight(1f),
                                         onClick = { viewModel.setRating(-1) },
                                         shape = RoundedCornerShape(14.dp),
-                                        enabled = !state.actionInProgress,
+                                        enabled = !state.ratingInProgress,
                                     ) {
                                         Icon(Icons.Outlined.ThumbDown, contentDescription = null)
                                         Spacer(modifier = Modifier.width(6.dp))
@@ -315,7 +315,7 @@ fun RecipeDetailsScreen(
                                     modifier = Modifier.fillMaxWidth(),
                                     onClick = viewModel::toggleFavorite,
                                     shape = RoundedCornerShape(14.dp),
-                                    enabled = !state.actionInProgress,
+                                    enabled = !state.favoriteInProgress,
                                 ) {
                                     Icon(Icons.Outlined.Bookmark, contentDescription = null)
                                     Spacer(modifier = Modifier.width(6.dp))

@@ -1,5 +1,6 @@
 package com.example.recipebookapp
 
+import com.example.recipebookapp.core.common.RecipeSyncNotifier
 import com.example.recipebookapp.core.common.Resource
 import com.example.recipebookapp.core.model.Recipe
 import com.example.recipebookapp.core.model.UserSummary
@@ -54,21 +55,42 @@ class FavoritesViewModelTest {
         assertTrue(repository.refreshCount >= 2)
         assertTrue(viewModel.state.value is AsyncState.Success)
     }
+
+    @Test
+    fun `favorite mutation refreshes favorites list`() = runTest {
+        val repository = FakeFavoritesRepository()
+        val notifier = RecipeSyncNotifier()
+        val viewModel = FavoritesViewModel(repository, notifier)
+        advanceUntilIdle()
+
+        repository.nextFavorites = emptyList()
+        notifier.notifyFavoriteMutated()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.state.value is AsyncState.Empty)
+        assertEquals(2, repository.refreshCount)
+    }
 }
 
 private class FakeFavoritesRepository : FavoritesRepository {
     var failRemove: Boolean = false
     var lastRemovedId: String? = null
     var refreshCount: Int = 0
+    var nextFavorites: List<Recipe> = listOf(sampleFavoriteRecipe())
 
     override suspend fun getFavorites(): Resource<List<Recipe>> {
         refreshCount += 1
-        return Resource.Success(listOf(sampleFavoriteRecipe()))
+        return Resource.Success(nextFavorites)
     }
 
     override suspend fun removeFavorite(recipeId: String): Resource<Unit> {
         lastRemovedId = recipeId
-        return if (failRemove) Resource.Error("Remove failed") else Resource.Success(Unit)
+        return if (failRemove) {
+            Resource.Error("Remove failed")
+        } else {
+            nextFavorites = nextFavorites.filterNot { it.id == recipeId }
+            Resource.Success(Unit)
+        }
     }
 }
 

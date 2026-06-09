@@ -1,6 +1,7 @@
 package com.example.recipebookapp
 
 import androidx.lifecycle.SavedStateHandle
+import com.example.recipebookapp.core.common.RecipeSyncNotifier
 import com.example.recipebookapp.core.common.Resource
 import com.example.recipebookapp.core.model.Recipe
 import com.example.recipebookapp.core.model.UserProfile
@@ -82,6 +83,19 @@ class ProfileViewModelTest {
 
         assertEquals("Follow failed", viewModel.state.value.error)
     }
+
+    @Test
+    fun `recipe mutation refreshes own profile`() = runTest {
+        val repository = FakeProfileRepository()
+        val notifier = RecipeSyncNotifier()
+        val viewModel = ProfileViewModel(repository, LogoutUseCase(FakeAuthRepositoryForProfile()), notifier)
+        advanceUntilIdle()
+
+        notifier.notifyRecipeMutated()
+        advanceUntilIdle()
+
+        assertEquals(2, repository.myProfileLoadCount)
+    }
 }
 
 private class FakeProfileRepository : ProfileRepository {
@@ -92,11 +106,14 @@ private class FakeProfileRepository : ProfileRepository {
     var lastFollowValue: Boolean? = null
     var otherProfileLoadCount: Int = 0
     var failSetFollowing: Boolean = false
+    var myProfileLoadCount: Int = 0
 
     private var profile = sampleUserProfile()
 
-    override suspend fun getMyProfileWithRecipes(): Resource<ProfileWithRecipes> =
-        Resource.Success(ProfileWithRecipes(profile, listOf(sampleRecipeForProfile())))
+    override suspend fun getMyProfileWithRecipes(): Resource<ProfileWithRecipes> {
+        myProfileLoadCount += 1
+        return Resource.Success(ProfileWithRecipes(profile, listOf(sampleRecipeForProfile())))
+    }
 
     override suspend fun getOtherProfileWithRecipes(userId: String): Resource<ProfileWithRecipes> {
         otherProfileLoadCount += 1
