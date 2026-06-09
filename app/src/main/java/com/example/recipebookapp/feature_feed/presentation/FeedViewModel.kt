@@ -2,9 +2,9 @@ package com.example.recipebookapp.feature_feed.presentation
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.recipebookapp.core.common.Resource
 import com.example.recipebookapp.core.model.CulinaryNews
 import com.example.recipebookapp.core.presentation.AsyncState
+import com.example.recipebookapp.core.presentation.toAsyncState
 import com.example.recipebookapp.feature_feed.domain.FeedRepository
 import com.example.recipebookapp.feature_feed.domain.FeedUseCases
 import com.example.recipebookapp.feature_feed.domain.feedUseCases
@@ -30,10 +30,7 @@ class FeedViewModel @Inject constructor(
     fun refresh() {
         viewModelScope.launch {
             _state.value = AsyncState.Loading
-            when (val result = feedUseCases.loadFeed()) {
-                is Resource.Success -> _state.value = if (result.data.isEmpty()) AsyncState.Empty else AsyncState.Success(result.data)
-                is Resource.Error -> _state.value = AsyncState.Error(result.message)
-            }
+            _state.value = feedUseCases.loadFeed().toAsyncState(List<CulinaryNews>::isEmpty)
         }
     }
 }

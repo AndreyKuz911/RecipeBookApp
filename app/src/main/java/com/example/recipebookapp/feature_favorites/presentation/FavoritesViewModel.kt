@@ -6,6 +6,7 @@ import com.example.recipebookapp.core.common.RecipeSyncNotifier
 import com.example.recipebookapp.core.common.Resource
 import com.example.recipebookapp.core.model.Recipe
 import com.example.recipebookapp.core.presentation.AsyncState
+import com.example.recipebookapp.core.presentation.toAsyncState
 import com.example.recipebookapp.feature_favorites.domain.FavoritesRepository
 import com.example.recipebookapp.feature_favorites.domain.FavoritesUseCases
 import com.example.recipebookapp.feature_favorites.domain.favoritesUseCases
@@ -41,10 +42,7 @@ class FavoritesViewModel @Inject constructor(
     fun refresh() {
         viewModelScope.launch {
             _state.value = AsyncState.Loading
-            when (val result = favoritesUseCases.loadFavorites()) {
-                is Resource.Success -> _state.value = if (result.data.isEmpty()) AsyncState.Empty else AsyncState.Success(result.data)
-                is Resource.Error -> _state.value = AsyncState.Error(result.message)
-            }
+            _state.value = favoritesUseCases.loadFavorites().toAsyncState(List<Recipe>::isEmpty)
         }
     }
 

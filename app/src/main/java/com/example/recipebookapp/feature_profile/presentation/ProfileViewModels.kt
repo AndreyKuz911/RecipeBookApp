@@ -10,6 +10,7 @@ import com.example.recipebookapp.core.presentation.toAsyncState
 import com.example.recipebookapp.feature_auth.domain.LogoutUseCase
 import com.example.recipebookapp.feature_profile.domain.ProfileRepository
 import com.example.recipebookapp.feature_profile.domain.ProfileUseCases
+import com.example.recipebookapp.feature_profile.domain.model.EditableProfileData
 import com.example.recipebookapp.feature_profile.domain.model.ProfileWithRecipes
 import com.example.recipebookapp.feature_profile.domain.profileUseCases
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -60,20 +61,22 @@ class ProfileViewModel @Inject constructor(
         viewModelScope.launch {
             _state.value = _state.value.copy(profileState = AsyncState.Loading)
             when (val state = profileUseCases.getEditableMyProfile().toAsyncState()) {
-                is AsyncState.Success -> {
-                    val fields = state.data.editorFields
-                    _state.value = _state.value.copy(
-                        profileState = AsyncState.Success(state.data.profile),
-                        editUsername = fields.username,
-                        editBio = fields.bio,
-                        editAvatarUrl = fields.avatarUrl,
-                    )
-                }
+                is AsyncState.Success -> applyEditableProfile(state.data)
                 is AsyncState.Error -> _state.value = _state.value.copy(profileState = state)
                 AsyncState.Empty -> _state.value = _state.value.copy(profileState = AsyncState.Empty)
                 AsyncState.Loading -> Unit
             }
         }
+    }
+
+    private fun applyEditableProfile(data: EditableProfileData) {
+        val fields = data.editorFields
+        _state.value = _state.value.copy(
+            profileState = AsyncState.Success(data.profile),
+            editUsername = fields.username,
+            editBio = fields.bio,
+            editAvatarUrl = fields.avatarUrl,
+        )
     }
 
     fun updateUsername(value: String) { _state.value = _state.value.copy(editUsername = value, error = null) }

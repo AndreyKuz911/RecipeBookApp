@@ -3,22 +3,15 @@ package com.example.recipebookapp.feature_favorites.domain
 import javax.inject.Inject
 
 data class FavoritesUseCases @Inject constructor(
-    val getFavorites: GetFavoritesUseCase,
     val loadFavorites: LoadFavoritesUseCase,
     val removeFavorite: RemoveFavoriteUseCase,
     val applyRemovedFavorite: ApplyRemovedFavoriteUseCase,
 )
 
-class GetFavoritesUseCase @Inject constructor(
+class LoadFavoritesUseCase @Inject constructor(
     private val repository: FavoritesRepository,
 ) {
     suspend operator fun invoke() = repository.getFavorites()
-}
-
-class LoadFavoritesUseCase @Inject constructor(
-    private val getFavorites: GetFavoritesUseCase,
-) {
-    suspend operator fun invoke() = getFavorites()
 }
 
 class RemoveFavoriteUseCase @Inject constructor(
@@ -33,10 +26,7 @@ class ApplyRemovedFavoriteUseCase @Inject constructor() {
 }
 
 fun favoritesUseCases(repository: FavoritesRepository): FavoritesUseCases = FavoritesUseCases(
-    getFavorites = GetFavoritesUseCase(repository),
-    loadFavorites = LoadFavoritesUseCase(
-        getFavorites = GetFavoritesUseCase(repository),
-    ),
+    loadFavorites = LoadFavoritesUseCase(repository),
     removeFavorite = RemoveFavoriteUseCase(repository),
     applyRemovedFavorite = ApplyRemovedFavoriteUseCase(),
 )
